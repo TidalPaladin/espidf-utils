@@ -10,8 +10,10 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "nvs_flash.h"
+#include "nvs.h"
 #include "tcpip_adapter.h"
 #include "esp_smartconfig.h"
+#include "Delay/Delay.h"
 
 #define ESPTOUCH_CONNECTED_BIT BIT0
 #define ESPTOUCH_DONE_BIT BIT1
@@ -27,13 +29,28 @@ class SmartConfigStatic {
 
   public:
 	/**
-	 * @brief Begins the SmartConfig connection service
+	 * @brief Begins the SmartConfig connection service without blocking
+	 *
+	 *
+	 * post: ESPTOUCH started and listening in separate task
+	 *
+	 * @return ESP_OK
+	 */
+	static esp_err_t begin();
+
+	/**
+	 * @brief 	Begins the SmartConfig connection service, blocking until
+	 * SmartConfig completes or a timeout is reached
+	 *
+	 * @param timeout_ms	Maximum time to wait for ESPTOUCH in milliseconds
 	 *
 	 * post: Waiting for ESPTOUCH SSID and passphrase data from smartphone app
 	 *
-	 * @return esp_err_t
+	 * @return
+	 * 	- ESP_OK 			ESPTOUCH was successful
+	 *  - ESP_ERR_TIMEOUT 	No connection was established before timeout
 	 */
-	static esp_err_t begin();
+	static esp_err_t begin(uint32_t timeout_ms);
 
 	/**
 	 * @brief Initializes the tcpip adapter

@@ -1,5 +1,7 @@
 #include "SmartConfig.h"
+
 const char *SmartConfigStatic::TAG = "SC";
+EventGroupHandle_t SmartConfigStatic::wifi_event_group;
 
 esp_err_t SmartConfigStatic::begin() {
 	initAdapter();
@@ -10,11 +12,30 @@ esp_err_t SmartConfigStatic::begin() {
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 	ESP_ERROR_CHECK(esp_wifi_start());
-	return ESP_OK;
+}
+
+esp_err_t SmartConfigStatic::begin(uint32_t timeout_ms) {
+	begin();
+
+	TickType_t xTicksToWait = Delay.millisecondsToTicks(timeout_ms);
+	EventBits_t uxBits = xEventGroupWaitBits(
+		wifi_event_group,  /* The event group being tested. */
+		ESPTOUCH_DONE_BIT, /* The bits within the event group to wait for. */
+		pdTRUE,		   /* BIT_0 & BIT_4 should be cleared before returning. */
+		pdFALSE,	   /* Don't wait for both bits, either bit will do. */
+		xTicksToWait); /* Wait a maximum of 100ms for either bit to be set. */
+
+	if ((uxBits & ESPTOUCH_DONE_BIT) != 0) {
+		ESP_LOGI(TAG, "Connection established, leaving begin()");
+		return ESP_OK;
+	} else {
+		ESP_LOGI(TAG, "Connection timeout, leaving begin()");
+		return ESP_ERR_TIMEOUT;
+	}
 }
 
 esp_err_t SmartConfigStatic::initAdapter() {
-	// Initialize the adapter
+	ESP_LOGI(TAG, "Initializing adapter");
 	tcpip_adapter_init();
 	wifi_event_group = xEventGroupCreate();
 	ESP_ERROR_CHECK(esp_event_loop_init(eventHandler, NULL));
@@ -42,6 +63,7 @@ esp_err_t SmartConfigStatic::eventHandler(void *ctx, system_event_t *event) {
 
 void SmartConfigStatic::smartConfigCallback(smartconfig_status_t status,
 											void *pdata) {
+	wifi_config_t *wifi_config;
 	switch (status) {
 	case SC_STATUS_WAIT:
 		ESP_LOGI(TAG, "SC_STATUS_WAIT");
@@ -54,7 +76,7 @@ void SmartConfigStatic::smartConfigCallback(smartconfig_status_t status,
 		break;
 	case SC_STATUS_LINK:
 		ESP_LOGI(TAG, "SC_STATUS_LINK");
-		wifi_config_t *wifi_config = (wifi_config_t *)pdata;
+		wifi_config = (wifi_config_t *)pdata;
 		ESP_LOGI(TAG, "SSID:%s", wifi_config->sta.ssid);
 		ESP_LOGI(TAG, "PASSWORD:%s", wifi_config->sta.password);
 		ESP_ERROR_CHECK(esp_wifi_disconnect());

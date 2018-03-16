@@ -35,17 +35,12 @@ class DelayStatic {
 			prev_wake_time = new TickType_t;
 			*prev_wake_time = xTaskGetTickCount();
 		}
-		vTaskDelayUntil(prev_wake_time, ticks_to_wait);
+		if (ticks_to_wait) vTaskDelayUntil(prev_wake_time, ticks_to_wait);
 	}
 
-	void delayUntilMilliseconds(uint32_t time_ms,
-								TickType_t *prev_wake_time = nullptr) {
-		// If the prev_wake_time was null, assume it to be now
-		if (prev_wake_time == nullptr) {
-			prev_wake_time = new TickType_t;
-			*prev_wake_time = xTaskGetTickCount();
-		}
-		vTaskDelayUntil(prev_wake_time, millisecondsToTicks(time_ms));
+	void waitForFixedPeriod(uint32_t period_ms,
+							TickType_t *prev_wake_time = nullptr) {
+		delayUntil(millisecondsToTicks(period_ms), prev_wake_time);
 	}
 
 	/**
