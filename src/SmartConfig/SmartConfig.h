@@ -1,7 +1,7 @@
 #ifndef __ESP_SMART_CONFIG_HELPER_H__
 #define __ESP_SMART_CONFIG_HELPER_H__
 
-#include <string>
+#include <string.h>
 #include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"

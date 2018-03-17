@@ -14,7 +14,7 @@ void app_main();
 std::string sample = "hello";
 
 template <typename T>
-esp_err_t write_readback(const char *key, T input, T readback) {
+esp_err_t write_readback(const char *key, T input, T &readback) {
 	esp_err_t result;
 	result = NVS.begin();
 	TEST_ASSERT_EQUAL_MESSAGE(ESP_OK, result, "NVS begin");
@@ -22,7 +22,7 @@ esp_err_t write_readback(const char *key, T input, T readback) {
 	result = NVS.write(key, input);
 	TEST_ASSERT_EQUAL_MESSAGE(ESP_OK, result, "Write val");
 
-	result = NVS.read("test", write_val_readback);
+	result = NVS.read(key, readback);
 	if (result != ESP_OK) {
 		return result;
 	}
@@ -40,6 +40,15 @@ template <typename T> void write_readback_test(const char *key, T input) {
 	}
 }
 
+template <>
+void write_readback_test<std::string>(const char *key, std::string input) {
+	std::string output;
+	esp_err_t result = write_readback(key, input, output);
+	if (result == ESP_OK) {
+		TEST_ASSERT_EQUAL_STRING(input.c_str(), output.c_str());
+	}
+}
+
 void int8_test() { write_readback_test<int8_t>(__func__, 100); }
 void int16_test() { write_readback_test<int16_t>(__func__, 100); }
 void int32_test() { write_readback_test<int32_t>(__func__, 100); }
@@ -54,14 +63,16 @@ void test_task(void *) {
 	vTaskDelay(2000 / portTICK_PERIOD_MS);
 	UNITY_BEGIN();
 
-	RUN_TEST(int8_test);
-	RUN_TEST(int16_test);
-	RUN_TEST(int32_test);
-	RUN_TEST(uint8_test);
-	RUN_TEST(uint16_test);
-	RUN_TEST(uint32_test);
-	RUN_TEST(blob_test1);
-	RUN_TEST(blob_test2);
+	for (int i = 0; i < 2; i++) {
+		RUN_TEST(int8_test);
+		RUN_TEST(int16_test);
+		RUN_TEST(int32_test);
+		RUN_TEST(uint8_test);
+		RUN_TEST(uint16_test);
+		RUN_TEST(uint32_test);
+		// RUN_TEST(blob_test1);
+		RUN_TEST(blob_test2);
+	}
 
 	UNITY_END();
 	vTaskDelete(NULL);

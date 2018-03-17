@@ -4,7 +4,7 @@ NVSStatic NVS;
 nvs_handle NVSStatic::my_handle;
 const char *NVSStatic::TAG = "NVS";
 
-esp_err_t NVSStatic::begin() {
+esp_err_t NVSStatic::begin(const char *name_space) {
 	ESP_LOGI(TAG, "Initializing NVS");
 	esp_err_t result = nvs_flash_init();
 	if (result == ESP_ERR_NVS_NO_FREE_PAGES) {
@@ -20,7 +20,7 @@ esp_err_t NVSStatic::begin() {
 	}
 
 	ESP_LOGI(TAG, "Opening NVS");
-	result = nvs_open("storage", NVS_READWRITE, &my_handle);
+	result = nvs_open(name_space, NVS_READWRITE, &my_handle);
 	if (result != ESP_OK) {
 		ESP_LOGW(TAG, "Error (%d) while opening NVS", result);
 	} else {
@@ -29,73 +29,67 @@ esp_err_t NVSStatic::begin() {
 	return result;
 }
 
-template <> esp_err_t NVSStatic::read<int8_t>(const char *key, int8_t &dest) {
+esp_err_t NVSStatic::read(const char *key, int8_t &dest) {
 	esp_err_t ret = nvs_get_i8(my_handle, key, &dest);
-	return checkReadResult(ret);
+	return checkReadResult(ret, key);
 }
-template <> esp_err_t NVSStatic::read<int16_t>(const char *key, int16_t &dest) {
+esp_err_t NVSStatic::read(const char *key, int16_t &dest) {
 	esp_err_t ret = nvs_get_i16(my_handle, key, &dest);
-	return checkReadResult(ret);
+	return checkReadResult(ret, key);
 }
-template <> esp_err_t NVSStatic::read<int32_t>(const char *key, int32_t &dest) {
+esp_err_t NVSStatic::read(const char *key, int32_t &dest) {
 	esp_err_t ret = nvs_get_i32(my_handle, key, &dest);
-	return checkReadResult(ret);
+	return checkReadResult(ret, key);
 }
-template <> esp_err_t NVSStatic::read<uint8_t>(const char *key, uint8_t &dest) {
+esp_err_t NVSStatic::read(const char *key, uint8_t &dest) {
 	esp_err_t ret = nvs_get_u8(my_handle, key, &dest);
-	return checkReadResult(ret);
+	return checkReadResult(ret, key);
 }
-template <>
-esp_err_t NVSStatic::read<uint16_t>(const char *key, uint16_t &dest) {
+esp_err_t NVSStatic::read(const char *key, uint16_t &dest) {
 	esp_err_t ret = nvs_get_u16(my_handle, key, &dest);
-	return checkReadResult(ret);
+	return checkReadResult(ret, key);
 }
-template <>
-esp_err_t NVSStatic::read<uint32_t>(const char *key, uint32_t &dest) {
+esp_err_t NVSStatic::read(const char *key, uint32_t &dest) {
 	esp_err_t ret = nvs_get_u32(my_handle, key, &dest);
-	return checkReadResult(ret);
+	return checkReadResult(ret, key);
 }
 esp_err_t NVSStatic::read(const char *key, char *dest) {
 	esp_err_t ret = nvs_get_str(my_handle, key, dest, nullptr);
-	return checkReadResult(ret);
+	return checkReadResult(ret, key);
 }
 
-template <> esp_err_t NVSStatic::write<int8_t>(const char *key, int8_t &data) {
+esp_err_t NVSStatic::write(const char *key, int8_t &data) {
 	esp_err_t ret = nvs_set_i8(my_handle, key, data);
-	return checkWriteResult(ret);
+	return checkWriteResult(ret, key);
 }
-template <>
-esp_err_t NVSStatic::write<int16_t>(const char *key, int16_t &data) {
+esp_err_t NVSStatic::write(const char *key, int16_t &data) {
 	esp_err_t ret = nvs_set_i16(my_handle, key, data);
-	return checkWriteResult(ret);
+	return checkWriteResult(ret, key);
 }
-template <>
-esp_err_t NVSStatic::write<int32_t>(const char *key, int32_t &data) {
+esp_err_t NVSStatic::write(const char *key, int32_t &data) {
 	esp_err_t ret = nvs_set_i32(my_handle, key, data);
-	return checkWriteResult(ret);
+	return checkWriteResult(ret, key);
 }
-template <>
-esp_err_t NVSStatic::write<uint8_t>(const char *key, uint8_t &data) {
+esp_err_t NVSStatic::write(const char *key, uint8_t &data) {
 	esp_err_t ret = nvs_set_u8(my_handle, key, data);
-	return checkWriteResult(ret);
+	return checkWriteResult(ret, key);
 }
-template <>
-esp_err_t NVSStatic::write<uint16_t>(const char *key, uint16_t &data) {
+esp_err_t NVSStatic::write(const char *key, uint16_t &data) {
 	esp_err_t ret = nvs_set_u16(my_handle, key, data);
-	return checkWriteResult(ret);
+	return checkWriteResult(ret, key);
 }
-template <>
-esp_err_t NVSStatic::write<uint32_t>(const char *key, uint32_t &data) {
+esp_err_t NVSStatic::write(const char *key, uint32_t &data) {
 	esp_err_t ret = nvs_set_u32(my_handle, key, data);
-	return checkWriteResult(ret);
+	return checkWriteResult(ret, key);
 }
 esp_err_t NVSStatic::write(const char *key, const char *data) {
 	esp_err_t ret = nvs_set_str(my_handle, key, data);
-	return checkWriteResult(ret);
+	return checkWriteResult(ret, key);
 }
 
 esp_err_t NVSStatic::end() {
 	nvs_close(my_handle);
+	ESP_LOGI(TAG, "NVS closed");
 	return ESP_OK;
 }
 
@@ -111,7 +105,7 @@ esp_err_t NVSStatic::nvsCommit() {
 esp_err_t NVSStatic::erase_key(const char *key) {
 	esp_err_t result = nvs_erase_key(my_handle, key);
 	if (result != ESP_OK) {
-		ESP_LOGE(TAG, "Error (%i) erasing key %s", result, key);
+		ESP_LOGE(TAG, "Error (%i) erasing key \"%s\"", result, key);
 	}
 	return result;
 }
@@ -124,20 +118,23 @@ esp_err_t NVSStatic::erase_all() {
 	return result;
 }
 
-esp_err_t NVSStatic::checkReadResult(esp_err_t result) {
+esp_err_t NVSStatic::checkReadResult(esp_err_t result, const char *key) {
 	if (result != ESP_OK) {
-		ESP_LOGE(TAG, "Error (%i) reading from NVS", result);
+		ESP_LOGE(TAG, "Error (%i) reading key \"%s\" from NVS", result, key);
 		errToName(result);
+	} else {
+		ESP_LOGI(TAG, "Read key \"%s\" from NVS", key);
 	}
 	return result;
 }
 
-esp_err_t NVSStatic::checkWriteResult(esp_err_t result) {
+esp_err_t NVSStatic::checkWriteResult(esp_err_t result, const char *key) {
 	if (result != ESP_OK) {
-		ESP_LOGE(TAG, "Error (%i) writing to NVS", result);
+		ESP_LOGE(TAG, "Error (%i) writing key \"%s\" to NVS", result, key);
 		errToName(result);
 	} else {
 		nvsCommit();
+		ESP_LOGI(TAG, "Wrote key \"%s\" to NVS", key);
 	}
 	return result;
 }

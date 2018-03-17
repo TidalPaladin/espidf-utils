@@ -17,11 +17,13 @@ class NVSStatic {
 	/**
 	 * @brief This must be called to start NVS
 	 *
+	 * @param name_space	The namespace for key/value pairs
+	 *
 	 * post: NVS initialized in read/write state
 	 *
 	 * @return esp_err_t
 	 */
-	static esp_err_t begin();
+	static esp_err_t begin(const char *name_space = "storage");
 
 	/**
 	 * @brief This must be called to close the NVS dialog
@@ -43,9 +45,16 @@ class NVSStatic {
 	 *  - ESP_ERR_NVS_NOT_FOUND     The given key was not found
 	 */
 	template <typename T> static esp_err_t read(const char *key, T &dest) {
-		esp_err_t ret = nvs_get_blob(my_handle, key, dest, sizeof(T));
-		return checkReadResult(ret);
+		size_t size = sizeof(T);
+		esp_err_t ret = nvs_get_blob(my_handle, key, (void *)&dest, &size);
+		return checkReadResult(ret, key);
 	}
+	esp_err_t read(const char *key, int8_t &dest);
+	esp_err_t read(const char *key, int16_t &dest);
+	esp_err_t read(const char *key, int32_t &dest);
+	esp_err_t read(const char *key, uint8_t &dest);
+	esp_err_t read(const char *key, uint16_t &dest);
+	esp_err_t read(const char *key, uint32_t &dest);
 
 	/**
 	 * @brief Reads a string from NVS
@@ -70,9 +79,15 @@ class NVSStatic {
 	 *  - ESP_OK                    The write was successful
 	 */
 	template <typename T> static esp_err_t write(const char *key, T &src) {
-		esp_err_t ret = nvs_set_blob(my_handle, key, src, sizeof(T));
-		return checkWriteResult(ret);
+		esp_err_t ret = nvs_set_blob(my_handle, key, (void *)&src, sizeof(T));
+		return checkWriteResult(ret, key);
 	}
+	esp_err_t write(const char *key, int8_t &data);
+	esp_err_t write(const char *key, int16_t &data);
+	esp_err_t write(const char *key, int32_t &data);
+	esp_err_t write(const char *key, uint8_t &data);
+	esp_err_t write(const char *key, uint16_t &data);
+	esp_err_t write(const char *key, uint32_t &data);
 
 	/**
 	 * @brief Write a string to NVS
@@ -118,7 +133,7 @@ class NVSStatic {
 	 *
 	 * @return result
 	 */
-	static esp_err_t checkReadResult(esp_err_t result);
+	static esp_err_t checkReadResult(esp_err_t result, const char *key);
 
 	/**
 	 * @brief Prints error messages for write methods and commits the set value
@@ -127,7 +142,7 @@ class NVSStatic {
 	 *
 	 * @return result
 	 */
-	static esp_err_t checkWriteResult(esp_err_t result);
+	static esp_err_t checkWriteResult(esp_err_t result, const char *key);
 
 	/**
 	 * @brief 	Converts an esp_err_t to its enum text name and prints the
