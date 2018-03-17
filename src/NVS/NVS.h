@@ -58,7 +58,7 @@ class NVSStatic {
 	 *  - ESP_OK                    The read was successful
 	 *  - ESP_ERR_NVS_NOT_FOUND     The given key was not found
 	 */
-	static esp_err_t read_str(const char *key, char *dest, size_t &len);
+	static esp_err_t read(const char *key, char *dest);
 
 	/**
 	 * @brief Writes a value to NVS for the given key
@@ -83,7 +83,7 @@ class NVSStatic {
 	 * @return
 	 *  - ESP_OK                    The write was successful
 	 */
-	static esp_err_t write_str(const char *key, const char *src);
+	static esp_err_t write(const char *key, const char *src);
 
 	/**
 	 * @brief Erases the given key from NVS

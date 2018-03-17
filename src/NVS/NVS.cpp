@@ -55,8 +55,8 @@ esp_err_t NVSStatic::read<uint32_t>(const char *key, uint32_t &dest) {
 	esp_err_t ret = nvs_get_u32(my_handle, key, &dest);
 	return checkReadResult(ret);
 }
-esp_err_t NVSStatic::read_str(const char *key, char *dest, size_t &len) {
-	esp_err_t ret = nvs_get_str(my_handle, key, dest, &len);
+esp_err_t NVSStatic::read(const char *key, char *dest) {
+	esp_err_t ret = nvs_get_str(my_handle, key, dest, nullptr);
 	return checkReadResult(ret);
 }
 
@@ -89,7 +89,7 @@ esp_err_t NVSStatic::write<uint32_t>(const char *key, uint32_t &data) {
 	esp_err_t ret = nvs_set_u32(my_handle, key, data);
 	return checkWriteResult(ret);
 }
-esp_err_t NVSStatic::write_str(const char *key, const char *data) {
+esp_err_t NVSStatic::write(const char *key, const char *data) {
 	esp_err_t ret = nvs_set_str(my_handle, key, data);
 	return checkWriteResult(ret);
 }
