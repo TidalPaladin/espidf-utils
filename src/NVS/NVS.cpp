@@ -29,69 +29,68 @@ esp_err_t NVSStatic::begin() {
 	return result;
 }
 
-esp_err_t NVSStatic::read_i8(const char *key, int8_t &dest) {
+template <> esp_err_t NVSStatic::read<int8_t>(const char *key, int8_t &dest) {
 	esp_err_t ret = nvs_get_i8(my_handle, key, &dest);
 	return checkReadResult(ret);
 }
-esp_err_t NVSStatic::read_i16(const char *key, int16_t &dest) {
+template <> esp_err_t NVSStatic::read<int16_t>(const char *key, int16_t &dest) {
 	esp_err_t ret = nvs_get_i16(my_handle, key, &dest);
 	return checkReadResult(ret);
 }
-esp_err_t NVSStatic::read_i32(const char *key, int32_t &dest) {
+template <> esp_err_t NVSStatic::read<int32_t>(const char *key, int32_t &dest) {
 	esp_err_t ret = nvs_get_i32(my_handle, key, &dest);
 	return checkReadResult(ret);
 }
-esp_err_t NVSStatic::read_u8(const char *key, uint8_t &dest) {
+template <> esp_err_t NVSStatic::read<uint8_t>(const char *key, uint8_t &dest) {
 	esp_err_t ret = nvs_get_u8(my_handle, key, &dest);
 	return checkReadResult(ret);
 }
-esp_err_t NVSStatic::read_u16(const char *key, uint16_t &dest) {
+template <>
+esp_err_t NVSStatic::read<uint16_t>(const char *key, uint16_t &dest) {
 	esp_err_t ret = nvs_get_u16(my_handle, key, &dest);
 	return checkReadResult(ret);
 }
-esp_err_t NVSStatic::read_u32(const char *key, uint32_t &dest) {
+template <>
+esp_err_t NVSStatic::read<uint32_t>(const char *key, uint32_t &dest) {
 	esp_err_t ret = nvs_get_u32(my_handle, key, &dest);
 	return checkReadResult(ret);
 }
-esp_err_t NVSStatic::read_str(const char *key, char *dest, size_t dest_len) {
-	esp_err_t ret = nvs_get_str(my_handle, key, dest, &dest_len);
-	return checkReadResult(ret);
-}
-esp_err_t NVSStatic::read_blob(const char *key, void *dest, size_t len) {
-	esp_err_t ret = nvs_get_blob(my_handle, key, dest, &len);
+esp_err_t NVSStatic::read_str(const char *key, char *dest, size_t &len) {
+	esp_err_t ret = nvs_get_str(my_handle, key, dest, &len);
 	return checkReadResult(ret);
 }
 
-esp_err_t NVSStatic::write_i8(const char *key, int8_t &data) {
+template <> esp_err_t NVSStatic::write<int8_t>(const char *key, int8_t &data) {
 	esp_err_t ret = nvs_set_i8(my_handle, key, data);
 	return checkWriteResult(ret);
 }
-esp_err_t NVSStatic::write_i16(const char *key, int16_t &data) {
+template <>
+esp_err_t NVSStatic::write<int16_t>(const char *key, int16_t &data) {
 	esp_err_t ret = nvs_set_i16(my_handle, key, data);
 	return checkWriteResult(ret);
 }
-esp_err_t NVSStatic::write_i32(const char *key, int32_t &data) {
+template <>
+esp_err_t NVSStatic::write<int32_t>(const char *key, int32_t &data) {
 	esp_err_t ret = nvs_set_i32(my_handle, key, data);
 	return checkWriteResult(ret);
 }
-esp_err_t NVSStatic::write_u8(const char *key, uint8_t &data) {
+template <>
+esp_err_t NVSStatic::write<uint8_t>(const char *key, uint8_t &data) {
 	esp_err_t ret = nvs_set_u8(my_handle, key, data);
 	return checkWriteResult(ret);
 }
-esp_err_t NVSStatic::write_u16(const char *key, uint16_t &data) {
+template <>
+esp_err_t NVSStatic::write<uint16_t>(const char *key, uint16_t &data) {
 	esp_err_t ret = nvs_set_u16(my_handle, key, data);
 	return checkWriteResult(ret);
 }
-esp_err_t NVSStatic::write_u32(const char *key, uint32_t &data) {
+template <>
+esp_err_t NVSStatic::write<uint32_t>(const char *key, uint32_t &data) {
 	esp_err_t ret = nvs_set_u32(my_handle, key, data);
 	return checkWriteResult(ret);
 }
 esp_err_t NVSStatic::write_str(const char *key, const char *data) {
 	esp_err_t ret = nvs_set_str(my_handle, key, data);
-	return checkWriteResult(ret);
-}
-esp_err_t NVSStatic::write_blob(const char *key, void *src, size_t len) {
-	esp_err_t ret = nvs_set_blob(my_handle, key, src, len);
 	return checkWriteResult(ret);
 }
 
@@ -123,4 +122,50 @@ esp_err_t NVSStatic::erase_all() {
 		ESP_LOGE(TAG, "Error (%i) erasing all keys", result);
 	}
 	return result;
+}
+
+esp_err_t NVSStatic::checkReadResult(esp_err_t result) {
+	if (result != ESP_OK) {
+		ESP_LOGE(TAG, "Error (%i) reading from NVS", result);
+		errToName(result);
+	}
+	return result;
+}
+
+esp_err_t NVSStatic::checkWriteResult(esp_err_t result) {
+	if (result != ESP_OK) {
+		ESP_LOGE(TAG, "Error (%i) writing to NVS", result);
+		errToName(result);
+	} else {
+		nvsCommit();
+	}
+	return result;
+}
+
+void NVSStatic::errToName(const esp_err_t &err) {
+	switch (err) {
+	case ESP_ERR_NVS_NOT_FOUND:
+		ESP_LOGE(TAG, "ESP_ERR_NVS_NOT_FOUND");
+		break;
+	case ESP_ERR_NVS_KEY_TOO_LONG:
+		ESP_LOGE(TAG, "ESP_ERR_NVS_KEY_TOO_LONG");
+		break;
+	case ESP_ERR_NVS_NOT_ENOUGH_SPACE:
+		ESP_LOGE(TAG, "ESP_ERR_NVS_NOT_ENOUGH_SPACE");
+		break;
+	case ESP_ERR_NVS_READ_ONLY:
+		ESP_LOGE(TAG, "ESP_ERR_NVS_READ_ONLY");
+		break;
+	case ESP_ERR_NVS_NOT_INITIALIZED:
+		ESP_LOGE(TAG, "ESP_ERR_NVS_NOT_INITIALIZED");
+		break;
+	case ESP_ERR_NVS_VALUE_TOO_LONG:
+		ESP_LOGE(TAG, "ESP_ERR_NVS_VALUE_TOO_LONG");
+		break;
+	case ESP_ERR_NVS_INVALID_HANDLE:
+		ESP_LOGE(TAG, "ESP_ERR_NVS_INVALID_HANDLE");
+		break;
+	default:
+		break;
+	}
 }
