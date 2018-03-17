@@ -1,4 +1,7 @@
-#include <string.h>
+#ifndef __ESP_SMART_CONFIG_HELPER_H__
+#define __ESP_SMART_CONFIG_HELPER_H__
+
+#include <string>
 #include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -14,12 +17,12 @@
 #include "tcpip_adapter.h"
 #include "esp_smartconfig.h"
 #include "Delay/Delay.h"
+#include "NVS/NVS.h"
 
 #define ESPTOUCH_CONNECTED_BIT BIT0
 #define ESPTOUCH_DONE_BIT BIT1
 
-#ifndef __ESP_SMART_CONFIG_HELPER_H__
-#define __ESP_SMART_CONFIG_HELPER_H__
+#define SC_NVS_KEY "SC_KEY"
 
 class SmartConfigStatic {
 
@@ -60,6 +63,8 @@ class SmartConfigStatic {
 	 */
 	static esp_err_t initAdapter();
 
+	static esp_err_t connect(wifi_config_t *config);
+
   private:
 	/**
 	 * @brief Callback handler for SmartConfig events
@@ -89,6 +94,10 @@ class SmartConfigStatic {
 	 * @return esp_err_t
 	 */
 	static esp_err_t eventHandler(void *ctx, system_event_t *event);
+
+	static void writeConnectionToNVS(wifi_config_t *config);
+
+	static bool tryConnectionFromNVS();
 
 	SmartConfigStatic() {}
 };

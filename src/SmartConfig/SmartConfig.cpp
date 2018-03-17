@@ -77,11 +77,8 @@ void SmartConfigStatic::smartConfigCallback(smartconfig_status_t status,
 	case SC_STATUS_LINK:
 		ESP_LOGI(TAG, "SC_STATUS_LINK");
 		wifi_config = (wifi_config_t *)pdata;
-		ESP_LOGI(TAG, "SSID:%s", wifi_config->sta.ssid);
-		ESP_LOGI(TAG, "PASSWORD:%s", wifi_config->sta.password);
-		ESP_ERROR_CHECK(esp_wifi_disconnect());
-		ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, wifi_config));
-		ESP_ERROR_CHECK(esp_wifi_connect());
+		connect(wifi_config);
+		writeConnectionToNVS(wifi_config);
 		break;
 	case SC_STATUS_LINK_OVER:
 		ESP_LOGI(TAG, "SC_STATUS_LINK_OVER");
@@ -115,4 +112,47 @@ void SmartConfigStatic::smartConfigTask(void *parm) {
 			vTaskDelete(NULL);
 		}
 	}
+}
+
+void SmartConfigStatic::writeConnectionToNVS(wifi_config_t *config) {
+	if (config == nullptr) {
+		ESP_LOGE(TAG, "Got null pointer writing to NVS");
+		return;
+	}
+
+	NVS.begin();
+	NVS.write_blob(SC_NVS_KEY, (void *)config, sizeof(wifi_config_t));
+	NVS.end();
+}
+
+bool SmartConfigStatic::tryConnectionFromNVS() {
+	ESP_LOGI(TAG, "Trying to find stored WiFi settings");
+	NVS.begin();
+	wifi_config_t *config;
+	NVS.read_blob(SC_NVS_KEY, (void *)config, sizeof(wifi_config_t));
+	NVS.end();
+
+	if (config != nullptr) {
+		ESP_LOGI(TAG, "Connecting using stored WiFi settings");
+		connect(config);
+		return true;
+	} else {
+		ESP_LOGI(TAG, "No stored settings, falling back to SmartConfig");
+		return false;
+	}
+}
+
+esp_err_t SmartConfigStatic::connect(wifi_config_t *config) {
+	if (config == nullptr) {
+		ESP_LOGE(TAG, "Got null pointer writing to NVS");
+		return ESP_ERR_INVALID_ARG;
+	}
+
+	ESP_LOGI(TAG, "SSID:%s", config->sta.ssid);
+	ESP_LOGI(TAG, "PASSWORD:%s", config->sta.password);
+	ESP_ERROR_CHECK(esp_wifi_disconnect());
+	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, config));
+	ESP_ERROR_CHECK(esp_wifi_connect());
+
+	return ESP_OK;
 }

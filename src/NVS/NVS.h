@@ -23,8 +23,6 @@ class NVSStatic {
   private:
 	static const char *TAG;
 	static nvs_handle my_handle;
-	static const char *WRITE_ERR;
-	static const char *READ_ERR;
 
   public:
 	/**
@@ -34,7 +32,7 @@ class NVSStatic {
 	 *
 	 * @return esp_err_t
 	 */
-	esp_err_t begin();
+	static esp_err_t begin();
 
 	/**
 	 * @brief This must be called to close the NVS dialog
@@ -43,7 +41,7 @@ class NVSStatic {
 	 *
 	 * @return esp_err_t
 	 */
-	esp_err_t end();
+	static esp_err_t end();
 
 	/**
 	 * @brief Reads a value fron NVS using a key
@@ -55,13 +53,14 @@ class NVSStatic {
 	 *  - ESP_OK                    The read was successful
 	 *  - ESP_ERR_NVS_NOT_FOUND     The given key was not found
 	 */
-	esp_err_t read_i8(const char *key, int8_t &dest);
-	esp_err_t read_i16(const char *key, int16_t &dest);
-	esp_err_t read_i32(const char *key, int32_t &dest);
-	esp_err_t read_u8(const char *key, uint8_t &dest);
-	esp_err_t read_u16(const char *key, uint16_t &dest);
-	esp_err_t read_u32(const char *key, uint32_t &dest);
-	esp_err_t read_str(const char *key, char *dest, size_t &dest_len);
+	static esp_err_t read_i8(const char *key, int8_t &dest);
+	static esp_err_t read_i16(const char *key, int16_t &dest);
+	static esp_err_t read_i32(const char *key, int32_t &dest);
+	static esp_err_t read_u8(const char *key, uint8_t &dest);
+	static esp_err_t read_u16(const char *key, uint16_t &dest);
+	static esp_err_t read_u32(const char *key, uint32_t &dest);
+	static esp_err_t read_str(const char *key, char *dest, size_t dest_len);
+	static esp_err_t read_blob(const char *key, void *dest, size_t dest_len);
 
 	/**
 	 * @brief Writes a value to NVS for the given key
@@ -72,18 +71,20 @@ class NVSStatic {
 	 * @return
 	 *  - ESP_OK                    The write was successful
 	 */
-	esp_err_t write_i8(const char *key, int8_t &data);
-	esp_err_t write_i16(const char *key, int16_t &data);
-	esp_err_t write_i32(const char *key, int32_t &data);
-	esp_err_t write_u8(const char *key, uint8_t &data);
-	esp_err_t write_u16(const char *key, uint16_t &data);
-	esp_err_t write_u32(const char *key, uint32_t &data);
-	esp_err_t write_str(const char *key, const char *data);
+	static esp_err_t write_i8(const char *key, int8_t &data);
+	static esp_err_t write_i16(const char *key, int16_t &data);
+	static esp_err_t write_i32(const char *key, int32_t &data);
+	static esp_err_t write_u8(const char *key, uint8_t &data);
+	static esp_err_t write_u16(const char *key, uint16_t &data);
+	static esp_err_t write_u32(const char *key, uint32_t &data);
+	static esp_err_t write_str(const char *key, const char *data);
+	static esp_err_t write_blob(const char *key, void *src, size_t len);
+
+	static esp_err_t erase_key(const char *key);
+
+	static esp_err_t erase_all();
 
   private:
-	// Private constructor
-	NVS() {}
-
 	/**
 	 * @brief Call after write() to commit the change to NVS
 	 *
@@ -92,16 +93,49 @@ class NVSStatic {
 	static esp_err_t nvsCommit();
 
 	static esp_err_t checkReadResult(esp_err_t result) {
-		if (result != ESP_OK) ESP_LOGE(TAG, WRITE_ERR, ret);
+		if (result != ESP_OK) {
+			ESP_LOGE(TAG, "Error (%i) reading from NVS", result);
+			errToName(result);
+		}
 		return result;
 	}
 
 	static esp_err_t checkWriteResult(esp_err_t result) {
-		if (result != ESP_OK)
-			ESP_LOGE(TAG, WRITE_ERR, ret);
-		else
+		if (result != ESP_OK) {
+			ESP_LOGE(TAG, "Error (%i) writing to NVS", result);
+			errToName(result);
+		} else {
 			nvsCommit();
+		}
 		return result;
+	}
+
+	static void errToName(const esp_err_t &err) {
+		switch (err) {
+		case ESP_ERR_NVS_NOT_FOUND:
+			ESP_LOGE(TAG, "ESP_ERR_NVS_NOT_FOUND");
+			break;
+		case ESP_ERR_NVS_KEY_TOO_LONG:
+			ESP_LOGE(TAG, "ESP_ERR_NVS_KEY_TOO_LONG");
+			break;
+		case ESP_ERR_NVS_NOT_ENOUGH_SPACE:
+			ESP_LOGE(TAG, "ESP_ERR_NVS_NOT_ENOUGH_SPACE");
+			break;
+		case ESP_ERR_NVS_READ_ONLY:
+			ESP_LOGE(TAG, "ESP_ERR_NVS_READ_ONLY");
+			break;
+		case ESP_ERR_NVS_NOT_INITIALIZED:
+			ESP_LOGE(TAG, "ESP_ERR_NVS_NOT_INITIALIZED");
+			break;
+		case ESP_ERR_NVS_VALUE_TOO_LONG:
+			ESP_LOGE(TAG, "ESP_ERR_NVS_VALUE_TOO_LONG");
+			break;
+		case ESP_ERR_NVS_INVALID_HANDLE:
+			ESP_LOGE(TAG, "ESP_ERR_NVS_INVALID_HANDLE");
+			break;
+		default:
+			break;
+		}
 	}
 };
 

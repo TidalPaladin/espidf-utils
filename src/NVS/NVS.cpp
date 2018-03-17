@@ -1,9 +1,8 @@
 #include "NVS.h"
 
+NVSStatic NVS;
 nvs_handle NVSStatic::my_handle;
 const char *NVSStatic::TAG = "NVS";
-const char *NVSStatic::WRITE_ERR = "Error (%d) writing to NVS";
-const char *NVSStatic::READ_ERR = "Error (%d) reading from NVS";
 
 esp_err_t NVSStatic::begin() {
 	ESP_LOGI(TAG, "Initializing NVS");
@@ -54,8 +53,12 @@ esp_err_t NVSStatic::read_u32(const char *key, uint32_t &dest) {
 	esp_err_t ret = nvs_get_u32(my_handle, key, &dest);
 	return checkReadResult(ret);
 }
-esp_err_t NVSStatic::read_str(const char *key, char *dest, size_t &dest_len) {
+esp_err_t NVSStatic::read_str(const char *key, char *dest, size_t dest_len) {
 	esp_err_t ret = nvs_get_str(my_handle, key, dest, &dest_len);
+	return checkReadResult(ret);
+}
+esp_err_t NVSStatic::read_blob(const char *key, void *dest, size_t len) {
+	esp_err_t ret = nvs_get_blob(my_handle, key, dest, &len);
 	return checkReadResult(ret);
 }
 
@@ -87,14 +90,37 @@ esp_err_t NVSStatic::write_str(const char *key, const char *data) {
 	esp_err_t ret = nvs_set_str(my_handle, key, data);
 	return checkWriteResult(ret);
 }
+esp_err_t NVSStatic::write_blob(const char *key, void *src, size_t len) {
+	esp_err_t ret = nvs_set_blob(my_handle, key, src, len);
+	return checkWriteResult(ret);
+}
 
-esp_err_t NVSStatic::end() { nvs_close(my_handle); }
+esp_err_t NVSStatic::end() {
+	nvs_close(my_handle);
+	return ESP_OK;
+}
 
 esp_err_t NVSStatic::nvsCommit() {
 	ESP_LOGV(TAG, "Commit NVS changes");
 	esp_err_t err = nvs_commit(my_handle);
 	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Error (%d) in NVS commit", err);
+		ESP_LOGE(TAG, "Error (%i) in NVS commit", err);
 	}
 	return err;
+}
+
+esp_err_t NVSStatic::erase_key(const char *key) {
+	esp_err_t result = nvs_erase_key(my_handle, key);
+	if (result != ESP_OK) {
+		ESP_LOGE(TAG, "Error (%i) erasing key %s", result, key);
+	}
+	return result;
+}
+
+esp_err_t NVSStatic::erase_all() {
+	esp_err_t result = nvs_erase_all(my_handle);
+	if (result != ESP_OK) {
+		ESP_LOGE(TAG, "Error (%i) erasing all keys", result);
+	}
+	return result;
 }
