@@ -22,6 +22,14 @@
 #define ESPTOUCH_CONNECTED_BIT BIT0
 #define ESPTOUCH_DONE_BIT BIT1
 
+#ifndef ESP_ERROR_CHECK_NOABORT
+#define ESP_ERROR_CHECK_NOABORT(func, ...)                                     \
+	for (esp_err_t err = func(__VA_ARGS__); err != ESP_OK;) {                  \
+		ESP_LOGE(TAG, "Error (%i) in %s", err, func);                          \
+		return err;                                                            \
+	}
+#endif
+
 #define SC_NVS_KEY "SC_KEY"
 
 class SmartConfigStatic {
@@ -63,7 +71,19 @@ class SmartConfigStatic {
 	 */
 	static esp_err_t initAdapter();
 
-	static esp_err_t connect(wifi_config_t *config);
+	/**
+	 * @brief Connect using the supplied wifi config
+	 *
+	 * @param config	Pointer to the wifi config used to connect
+	 *
+	 * @return error code
+	 */
+	static esp_err_t connect(wifi_config_t *config = nullptr);
+
+	static esp_err_t forceSmartConfig();
+	static esp_err_t forceSmartConfig(uint32_t timeout_ms);
+
+	static ip4_addr_t ip();
 
   private:
 	/**
@@ -95,11 +115,12 @@ class SmartConfigStatic {
 	 */
 	static esp_err_t eventHandler(void *ctx, system_event_t *event);
 
-	static void writeConnectionToNVS(wifi_config_t *config);
-
-	static bool tryConnectionFromNVS();
-
 	SmartConfigStatic() {}
+
+	static bool isValidSSID(wifi_config_t *config);
+	static bool isValidPSK(wifi_config_t *config);
+
+	static esp_err_t blockForSmartConfig(uint32_t timeout_ms);
 };
 
 extern SmartConfigStatic SmartConfig;

@@ -8,24 +8,28 @@ esp_err_t SmartConfigStatic::begin() {
 
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
-	// Initialize WiFi and start it in client mode
-	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-	ESP_ERROR_CHECK(esp_wifi_start());
+	// Initialize adapter in client mode, store network in flash
+	ESP_ERROR_CHECK_NOABORT(esp_wifi_init, &cfg);
+	ESP_ERROR_CHECK_NOABORT(esp_wifi_set_mode, WIFI_MODE_STA);
+	ESP_ERROR_CHECK_NOABORT(esp_wifi_set_storage, WIFI_STORAGE_FLASH);
+	ESP_ERROR_CHECK_NOABORT(esp_wifi_set_auto_connect, true);
+	ESP_ERROR_CHECK_NOABORT(esp_wifi_start);
+	return ESP_OK;
 }
 
 esp_err_t SmartConfigStatic::begin(uint32_t timeout_ms) {
-	begin();
+	esp_err_t err;
+	err = begin();
+	return err == ESP_OK ? blockForSmartConfig(timeout_ms) : err;
+}
 
+esp_err_t SmartConfigStatic::blockForSmartConfig(uint32_t timeout_ms) {
 	TickType_t xTicksToWait = Delay.millisecondsToTicks(timeout_ms);
 	EventBits_t uxBits = xEventGroupWaitBits(
-		wifi_event_group,  /* The event group being tested. */
-		ESPTOUCH_DONE_BIT, /* The bits within the event group to wait for. */
-		pdTRUE,		   /* BIT_0 & BIT_4 should be cleared before returning. */
-		pdFALSE,	   /* Don't wait for both bits, either bit will do. */
-		xTicksToWait); /* Wait a maximum of 100ms for either bit to be set. */
+		wifi_event_group, ESPTOUCH_CONNECTED_BIT | ESPTOUCH_DONE_BIT, pdTRUE,
+		pdFALSE, xTicksToWait);
 
-	if ((uxBits & ESPTOUCH_DONE_BIT) != 0) {
+	if ((uxBits & ESPTOUCH_CONNECTED_BIT) != 0) {
 		ESP_LOGI(TAG, "Connection established, leaving begin()");
 		return ESP_OK;
 	} else {
@@ -38,19 +42,44 @@ esp_err_t SmartConfigStatic::initAdapter() {
 	ESP_LOGI(TAG, "Initializing adapter");
 	tcpip_adapter_init();
 	wifi_event_group = xEventGroupCreate();
-	ESP_ERROR_CHECK(esp_event_loop_init(eventHandler, NULL));
+	esp_event_loop_init(eventHandler, NULL);
 	return ESP_OK;
 }
 
+esp_err_t SmartConfigStatic::forceSmartConfig() {
+	esp_err_t err;
+	err = esp_wifi_disconnect();
+	xTaskCreate(smartConfigTask, "smart_config", 4096, NULL, 3, NULL);
+	return err;
+}
+
+esp_err_t SmartConfigStatic::forceSmartConfig(uint32_t timeout_ms) {
+	forceSmartConfig();
+	return blockForSmartConfig(timeout_ms);
+}
+
 esp_err_t SmartConfigStatic::eventHandler(void *ctx, system_event_t *event) {
+	// Here we handle WiFi events not related to smart config
 	switch (event->event_id) {
+
 	// On wifi start, launch smart config task
 	case SYSTEM_EVENT_STA_START:
-		xTaskCreate(smartConfigTask, "smart_config", 4096, NULL, 3, NULL);
+		bool autoconnect;
+		esp_wifi_get_auto_connect(&autoconnect);
+		if (!autoconnect || connect() != ESP_OK)
+			xTaskCreate(smartConfigTask, "smart_config", 4096, NULL, 3, NULL);
+		else {
+			xEventGroupSetBits(wifi_event_group, ESPTOUCH_CONNECTED_BIT);
+		}
 		break;
-	case SYSTEM_EVENT_STA_GOT_IP:
+
+	case SYSTEM_EVENT_STA_GOT_IP: {
+		ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
+		ip4_addr_t ipv4 = ip();
+		ESP_LOGI(TAG, "IP:" IPSTR, IP2STR(&ipv4));
 		xEventGroupSetBits(wifi_event_group, ESPTOUCH_CONNECTED_BIT);
 		break;
+	}
 	case SYSTEM_EVENT_STA_DISCONNECTED:
 		esp_wifi_connect();
 		xEventGroupClearBits(wifi_event_group, ESPTOUCH_CONNECTED_BIT);
@@ -78,13 +107,12 @@ void SmartConfigStatic::smartConfigCallback(smartconfig_status_t status,
 		ESP_LOGI(TAG, "SC_STATUS_LINK");
 		wifi_config = (wifi_config_t *)pdata;
 		connect(wifi_config);
-		writeConnectionToNVS(wifi_config);
 		break;
 	case SC_STATUS_LINK_OVER:
 		ESP_LOGI(TAG, "SC_STATUS_LINK_OVER");
 		if (pdata != NULL) {
 			uint8_t phone_ip[4] = {0};
-			// memcpy(phone_ip, (uint8_t *)pdata, 4);
+			memcpy(phone_ip, (uint8_t *)pdata, 4);
 			ESP_LOGI(TAG, "Phone ip: %d.%d.%d.%d\n", phone_ip[0], phone_ip[1],
 					 phone_ip[2], phone_ip[3]);
 		}
@@ -97,12 +125,15 @@ void SmartConfigStatic::smartConfigCallback(smartconfig_status_t status,
 
 void SmartConfigStatic::smartConfigTask(void *parm) {
 	EventBits_t uxBits;
-	ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH));
-	ESP_ERROR_CHECK(esp_smartconfig_start(smartConfigCallback));
+	esp_smartconfig_set_type(SC_TYPE_ESPTOUCH);
+	esp_smartconfig_start(smartConfigCallback);
 	while (1) {
+		// Delay while SC connection is made
 		uxBits = xEventGroupWaitBits(wifi_event_group,
 									 ESPTOUCH_CONNECTED_BIT | ESPTOUCH_DONE_BIT,
 									 true, false, portMAX_DELAY);
+
+		// When SC wait is over, report results
 		if (uxBits & ESPTOUCH_CONNECTED_BIT) {
 			ESP_LOGI(TAG, "WiFi Connected to ap");
 		}
@@ -114,45 +145,49 @@ void SmartConfigStatic::smartConfigTask(void *parm) {
 	}
 }
 
-void SmartConfigStatic::writeConnectionToNVS(wifi_config_t *config) {
-	// if (config == nullptr) {
-	// 	ESP_LOGE(TAG, "Got null pointer writing to NVS");
-	// 	return;
-	// }
-
-	// NVS.begin();
-	// NVS.write_blob(SC_NVS_KEY, (void *)config, sizeof(wifi_config_t));
-	// NVS.end();
-}
-
-bool SmartConfigStatic::tryConnectionFromNVS() {
-	// ESP_LOGI(TAG, "Trying to find stored WiFi settings");
-	// NVS.begin();
-	// wifi_config_t *config;
-	// NVS.read_blob(SC_NVS_KEY, (void *)config, sizeof(wifi_config_t));
-	// NVS.end();
-
-	// if (config != nullptr) {
-	// 	ESP_LOGI(TAG, "Connecting using stored WiFi settings");
-	// 	connect(config);
-	// 	return true;
-	// } else {
-	// 	ESP_LOGI(TAG, "No stored settings, falling back to SmartConfig");
-	// 	return false;
-	// }
-}
-
 esp_err_t SmartConfigStatic::connect(wifi_config_t *config) {
+
 	if (config == nullptr) {
-		ESP_LOGE(TAG, "Got null pointer writing to NVS");
+		ESP_LOGI(TAG, "Got null pointer, trying using saved settings");
+		ESP_ERROR_CHECK_NOABORT(esp_wifi_connect);
+		return ESP_OK;
+	}
+
+	// Check good wifi config
+	if (!isValidSSID(config)) {
+		ESP_LOGE(TAG, "Got bad ssid \"%s\"", config->sta.ssid);
+		return ESP_ERR_INVALID_ARG;
+	} else if (!isValidPSK(config)) {
+		ESP_LOGE(TAG, "Got bad psk \"%s\"", config->sta.password);
 		return ESP_ERR_INVALID_ARG;
 	}
 
 	ESP_LOGI(TAG, "SSID:%s", config->sta.ssid);
 	ESP_LOGI(TAG, "PASSWORD:%s", config->sta.password);
-	ESP_ERROR_CHECK(esp_wifi_disconnect());
-	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, config));
-	ESP_ERROR_CHECK(esp_wifi_connect());
 
+	// Disconnect, set config, and connect
+	ESP_ERROR_CHECK_NOABORT(esp_wifi_disconnect);
+	ESP_ERROR_CHECK_NOABORT(esp_wifi_set_config, ESP_IF_WIFI_STA, config);
+	ESP_ERROR_CHECK_NOABORT(esp_wifi_connect);
 	return ESP_OK;
+}
+
+bool SmartConfigStatic::isValidSSID(wifi_config_t *config) {
+	return config->sta.ssid[0] != 0;
+}
+bool SmartConfigStatic::isValidPSK(wifi_config_t *config) {
+	return config->sta.password[0] != 0;
+}
+
+ip4_addr_t SmartConfigStatic::ip() {
+	tcpip_adapter_ip_info_t ip;
+	memset(&ip, 0, sizeof(tcpip_adapter_ip_info_t));
+	if (tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip) == 0) {
+		return ip.ip;
+		// ESP_LOGI(TAG, "~~~~~~~~~~~");
+		// ESP_LOGI(TAG, "IP:" IPSTR, IP2STR(&ip.ip));
+		// ESP_LOGI(TAG, "MASK:" IPSTR, IP2STR(&ip.netmask));
+		// ESP_LOGI(TAG, "GW:" IPSTR, IP2STR(&ip.gw));
+		// ESP_LOGI(TAG, "~~~~~~~~~~~");
+	}
 }
