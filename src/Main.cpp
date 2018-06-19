@@ -1,4 +1,5 @@
 #include "DNS/DNS.h"
+#include "SmartConfig/EasyWifi.h"
 #include "SmartConfig/SmartConfig.h"
 
 #include <stdio.h>
@@ -8,6 +9,9 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
+#include "freertos/task.h"
 #include "lwip/dns.h"
 #include "lwip/inet.h"
 
@@ -15,18 +19,21 @@ extern "C" {
 void app_main();
 }
 
-static void task(void* param) {
-  ESP_LOGI("DEF", "STARTING!!!\n");
-  ip_addr_t result = DNS::resolveDomain("google.com");
-  printf("DNS found: %i.%i.%i.%i\n", ip4_addr1(&result.u_addr.ip4),
-         ip4_addr2(&result.u_addr.ip4), ip4_addr3(&result.u_addr.ip4),
-         ip4_addr4(&result.u_addr.ip4));
-
-  while (true) {
-  }
+static void dns_resolve_task(void *parm) {
+  EasyWifi::wait_for_wifi(20);
+  ip_addr_t result;
+  DNS::resolve("tidalpaladin.com", &result);
+  ESP_LOGI("MAIN", "DNS resolve done");
+  vTaskDelete(NULL);
 }
 
+void connect_wifi() { EasyWifi::connect(); }
+
 void app_main() {
-  SmartConfig.begin(60000);
-  xTaskCreate(&task, "task", 8192, NULL, 5, NULL);
+  EasyWifi::init_hardware();
+  EasyWifi::init_software();
+  uint32_t timeout_s = 120;
+  connect_wifi();
+  // SmartConfig::sc_start(&timeout_s);
+  xTaskCreate(dns_resolve_task, "task", 2048, nullptr, 5, nullptr);
 }
