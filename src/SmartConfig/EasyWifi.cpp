@@ -38,7 +38,7 @@ esp_err_t EasyWifi::connect(wifi_config_t *config) {
 }
 
 void EasyWifi::wait_for_wifi(uint32_t time_s) {
-  const TickType_t ticks_to_wait = Delay.millisecondsToTicks(time_s * 1000);
+  const TickType_t ticks_to_wait = Delay::millisecondsToTicks(time_s * 1000);
   ESP_LOGI(TAG, "Blocking for wifi connect, %i seconds max", time_s);
   xEventGroupWaitBits(wifi_event_group, ESP_WIFI_CONN_BIT, pdTRUE, pdFALSE,
                       ticks_to_wait);
