@@ -17,13 +17,14 @@
 #include "freertos/task.h"
 
 namespace Delay {
+
 /**
  * @brief Delays the task for a given number of milliseconds
  *
  * @param ms    How many milliseconds to delay the task for
  *
  */
-void delay(uint32_t ms) { vTaskDelay(millisecondsToTicks(ms)); }
+void delay(uint32_t ms);
 
 /**
  * @brief Delays the task for a given number of microseconds
@@ -31,37 +32,51 @@ void delay(uint32_t ms) { vTaskDelay(millisecondsToTicks(ms)); }
  * @param ms    How many microseconds to delay the task for
  *
  */
-void delayMicroseconds(uint32_t ms) { vTaskDelay(millisecondsToTicks(ms)); }
-
-void delayUntil(TickType_t ticks_to_wait,
-                TickType_t *prev_wake_time = nullptr) {
-  // If the prev_wake_time was null, assume it to be now
-  if (prev_wake_time == nullptr) {
-    prev_wake_time = new TickType_t;
-    *prev_wake_time = xTaskGetTickCount();
-  }
-  if (ticks_to_wait) vTaskDelayUntil(prev_wake_time, ticks_to_wait);
-}
-
-void waitForFixedPeriod(uint32_t period_ms,
-                        TickType_t *prev_wake_time = nullptr) {
-  delayUntil(millisecondsToTicks(period_ms), prev_wake_time);
-}
+void delay_microseconds(uint32_t us);
 
 /**
- * @brief Converts a given number of task ticks to milliseconds
+ * @brief Delays the task until the given number of ticks have passed between
+ *        the given previous wake time and now
  *
- * @param ms    The number of milliseconds to convert to ticks
+ * @attention             Get the current tick counter with xTaskGetTickCount()
  *
- * @return
+ * @param ticks_to_wait   How many ticks should elapse before the delay ends
+ * @param prev_wake_time  The base tick counter to which 'ticks_to_wait' is
+ *                        relative to
  */
-static constexpr TickType_t millisecondsToTicks(uint32_t ms) {
-  return ms / portTICK_PERIOD_MS;
-}
+void delay_until(TickType_t ticks_to_wait, TickType_t *prev_wake_time);
 
-static constexpr uint32_t ticksToMilliseconds(TickType_t ticks) {
-  return ticks * portTICK_PERIOD_MS;
-}
+/**
+ * @brief Delays the task until the given number of milliseconds have passed
+ *        between the given previous wake time and now
+ *
+ * @attention             Get the current tick counter with xTaskGetTickCount()
+ *
+ * @param ticks_to_wait   How many ticks should elapse before the delay ends
+ * @param prev_wake_time  The base tick counter to which 'ticks_to_wait' is
+ *                        relative to
+ */
+void delay_until_ms(uint32_t period_ms, TickType_t *prev_wake_time);
+
+/**
+ * @brief Convert a time in milliseconds to the number of ticks that would
+ * elapse during that time
+ *
+ * @param ms  The time in milliseconds to convert
+ *
+ * @return TickType_t representing how many ticks are in 'ms' milliseconds
+ */
+TickType_t ms_to_ticks(uint32_t ms);
+
+/**
+ * @brief Convert a number of ticks to the time in milliseconds for 'ticks' to
+ * happen
+ *
+ * @param ticks The number of ticks to convert to milliseconds
+ *
+ * @return The time in milliseconds it takes for 'ticks' ticks to happen
+ */
+uint32_t ticks_to_ms(TickType_t ticks);
 
 };  // namespace Delay
 

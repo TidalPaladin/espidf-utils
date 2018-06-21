@@ -49,7 +49,7 @@ void SmartConfig::sc_task(void *parm) {
 
   /* uint32_t timeout_s passed as param */
   uint32_t *timeout_s = static_cast<uint32_t *>(parm);
-  TickType_t timeout_ticks = Delay::millisecondsToTicks(*timeout_s * 1000);
+  TickType_t timeout_ticks = Delay::ms_to_ticks(*timeout_s * 1000);
 
   EventBits_t uxBits;
   esp_smartconfig_set_type(SC_TYPE_ESPTOUCH);
