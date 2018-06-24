@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "Button/esp_button.h"
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -19,21 +20,27 @@ extern "C" {
 void app_main();
 }
 
-static void dns_resolve_task(void *parm) {
-  EasyWifi::wait_for_wifi(20);
-  ip_addr_t result;
-  DNS::resolve("tidalpaladin.com", &result);
-  ESP_LOGI("MAIN", "DNS resolve done");
-  vTaskDelete(NULL);
+static void task(void *parm) {
+  while (true) {
+  }
 }
 
-void connect_wifi() { EasyWifi::connect(); }
+void cb(button_event_t event, int state) {
+  ESP_LOGI("cb", "Start callback!!");
+  ESP_LOGI("cb", "State %i", state);
+}
 
 void app_main() {
-  EasyWifi::init_hardware();
-  EasyWifi::init_software();
-  uint32_t timeout_s = 120;
-  connect_wifi();
-  // SmartConfig::sc_start(&timeout_s);
-  xTaskCreate(dns_resolve_task, "task", 2048, nullptr, 5, nullptr);
+  ESP_ERROR_CHECK(esp_button_init());
+  button_config_t config;
+  esp_button_config(&config);
+  config.gpio = GPIO_NUM_0;
+  config.callback = &cb;
+  config.type = GPIO_INTR_LOW_LEVEL;
+  ESP_ERROR_CHECK(esp_add_button(&config));
+  gpio_set_pull_mode(GPIO_NUM_0, GPIO_PULLUP_ONLY);
+  gpio_pullup_en(GPIO_NUM_0);
+  xTaskCreate(task, "task", 2048, nullptr, 5, nullptr);
+  while (true) {
+  }
 }
