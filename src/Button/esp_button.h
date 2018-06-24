@@ -29,7 +29,6 @@ typedef struct {
   button_callback_t callback;
   uint32_t debounce_ms;
   uint32_t hold_ms;
-  TickType_t last_event;
 } button_config_t;
 
 esp_err_t esp_button_config(button_config_t *config);

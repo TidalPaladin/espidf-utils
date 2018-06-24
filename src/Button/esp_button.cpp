@@ -3,6 +3,9 @@
 const char *TAG = "button";
 
 static void button_isr(void *parm);
+
+static void button_task(void *parm);
+
 static uint32_t get_elapsed_time_ms(TickType_t *);
 
 esp_err_t esp_button_config(button_config_t *config) {
@@ -20,7 +23,6 @@ esp_err_t esp_button_init() {
 
 esp_err_t esp_add_button(button_config_t *config) {
   ESP_LOGI(TAG, "Adding button on GPIO %i", config->gpio);
-  config->last_event = xTaskGetTickCount();
   gpio_set_direction(config->gpio, GPIO_MODE_INPUT);
   gpio_intr_enable(config->gpio);
   gpio_set_intr_type(config->gpio, config->type);
@@ -39,13 +41,22 @@ esp_err_t esp_button_deinit() {
 }
 
 void button_isr(void *parm) {
-  /* Record GPIO state and time elapsed since last event */
+  xTaskCreate(button_task, "button_task", 2048, parm, 2, NULL);
+}
+
+void button_task(void *parm) {
+  taskENTER_CRITICAL(NULL);
+  /* Wait for button release */
   button_config_t *config = (button_config_t *)parm;
-  const int LEVEL = gpio_get_level(config->gpio);
-  const uint32_t ELASPED_MS = get_elapsed_time_ms(&config->last_event);
-  config->last_event = xTaskGetTickCountFromISR();
+  const uint8_t GPIO_STATE = gpio_get_level(config->gpio);
+  const TickType_t INITIAL_TICKS = xTaskGetTickCount();
+  taskEXIT_CRITICAL(NULL);
+
+  while (gpio_get_level(config->gpio) != GPIO_STATE) {
+  }
 
   /* Discriminate bounce / press / hold */
+
   button_event_t event_type;
   if (ELASPED_MS >= config->hold_ms) {
     event_type = BUTTON_HOLD;
