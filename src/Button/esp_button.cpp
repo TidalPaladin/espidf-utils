@@ -7,17 +7,21 @@ static void button_isr(void *parm);
 static void button_task(void *parm);
 
 esp_err_t esp_button_config(button_config_t *config) {
+  if (config == NULL) {
+    return ESP_ERR_INVALID_ARG;
+  }
+
   config->gpio = GPIO_NUM_MAX;
-  config->type = GPIO_INTR_ANYEDGE;
-  config->debounce_ms = 30;
-  config->hold_ms = 3000;
-  config->cb_stack_size = 4096;
+  config->type = GPIO_INTR_LOW_LEVEL;
+  config->debounce_ms = BUTTON_DEFAULT_DEBOUNCE_MS;
+  config->hold_ms = BUTTON_DEFAULT_HOLD_MS;
+  config->cb_stack_size = BUTTON_DEFAULT_STACK_SIZE;
   return ESP_OK;
 }
 
 esp_err_t esp_button_init() {
   ESP_LOGI(TAG, "Registering isr");
-  return gpio_install_isr_service(ESP_INTR_FLAG_EDGE | ESP_INTR_FLAG_IRAM);
+  return gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
 }
 
 esp_err_t esp_add_button(button_config_t *config) {
@@ -29,7 +33,7 @@ esp_err_t esp_add_button(button_config_t *config) {
   result = gpio_intr_enable(config->gpio);
   if (result != ESP_OK) return result;
 
-  gpio_set_intr_type(config->gpio, config->type);
+  result = gpio_set_intr_type(config->gpio, config->type);
   if (result != ESP_OK) return result;
 
   result = gpio_isr_handler_add(config->gpio, button_isr, (void *)config);
@@ -73,7 +77,7 @@ static void button_task(void *parm) {
     ticks_elapsed = xTaskGetTickCount();
     ESP_LOGI(TAG, "Button pressed on GPIO %i, waiting for release",
              config->gpio);
-    bool button_released = ulTaskNotifyTake(pdTRUE, ticks_to_wait);
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     ticks_elapsed = xTaskGetTickCount() - ticks_elapsed;
     ESP_LOGI(TAG, "Button released after %i ms",
              ticks_elapsed * portTICK_PERIOD_MS);
@@ -85,12 +89,6 @@ static void button_task(void *parm) {
     } else {
       ESP_LOGI(TAG, "Detected button press");
       config->callback(BUTTON_PRESS);
-    }
-
-    /* If we timed out waiting for release, block here until user releases
-     * button */
-    if (!button_released) {
-      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     }
 
     /* Delay for debounce */
