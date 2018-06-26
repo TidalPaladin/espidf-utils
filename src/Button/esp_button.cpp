@@ -6,31 +6,41 @@ static void button_isr(void *parm);
 
 static void button_task(void *parm);
 
-static uint32_t get_elapsed_time_ms(TickType_t *);
-
 esp_err_t esp_button_config(button_config_t *config) {
   config->gpio = GPIO_NUM_MAX;
   config->type = GPIO_INTR_ANYEDGE;
   config->debounce_ms = 30;
   config->hold_ms = 3000;
+  config->cb_stack_size = 4096;
   return ESP_OK;
 }
 
 esp_err_t esp_button_init() {
   ESP_LOGI(TAG, "Registering isr");
-  return gpio_install_isr_service(ESP_INTR_FLAG_EDGE);
+  return gpio_install_isr_service(ESP_INTR_FLAG_EDGE | ESP_INTR_FLAG_IRAM);
 }
 
 esp_err_t esp_add_button(button_config_t *config) {
   ESP_LOGI(TAG, "Adding button on GPIO %i", config->gpio);
-  gpio_set_direction(config->gpio, GPIO_MODE_INPUT);
-  gpio_intr_enable(config->gpio);
+
+  esp_err_t result = gpio_set_direction(config->gpio, GPIO_MODE_INPUT);
+  if (result != ESP_OK) return result;
+
+  result = gpio_intr_enable(config->gpio);
+  if (result != ESP_OK) return result;
+
   gpio_set_intr_type(config->gpio, config->type);
-  return gpio_isr_handler_add(config->gpio, button_isr, (void *)config);
+  if (result != ESP_OK) return result;
+
+  result = gpio_isr_handler_add(config->gpio, button_isr, (void *)config);
+  xTaskCreate(button_task, "button_master", config->cb_stack_size,
+              (void *)config, 10, &config->task);
+  return result;
 }
 
 esp_err_t esp_remove_button(button_config_t *config) {
   ESP_LOGI(TAG, "Removing button on GPIO %i", config->gpio);
+  vTaskDelete(config->task);
   return gpio_isr_handler_remove(config->gpio);
 }
 
@@ -41,38 +51,49 @@ esp_err_t esp_button_deinit() {
 }
 
 void button_isr(void *parm) {
-  xTaskCreate(button_task, "button_task", 2048, parm, 2, NULL);
-}
-
-void button_task(void *parm) {
-  taskENTER_CRITICAL(NULL);
-  /* Wait for button release */
+  BaseType_t xHigherPriorityTaskWoken;
   button_config_t *config = (button_config_t *)parm;
-  const uint8_t GPIO_STATE = gpio_get_level(config->gpio);
-  const TickType_t INITIAL_TICKS = xTaskGetTickCount();
-  taskEXIT_CRITICAL(NULL);
+  vTaskNotifyGiveFromISR(config->task, &xHigherPriorityTaskWoken);
 
-  while (gpio_get_level(config->gpio) != GPIO_STATE) {
+  if (xHigherPriorityTaskWoken == pdTRUE) {
+    portYIELD_FROM_ISR();
   }
-
-  /* Discriminate bounce / press / hold */
-
-  button_event_t event_type;
-  if (ELASPED_MS >= config->hold_ms) {
-    event_type = BUTTON_HOLD;
-  } else if (ELASPED_MS < config->debounce_ms) {
-    event_type = BUTTON_BOUNCE;
-  } else {
-    event_type = BUTTON_PRESS;
-  }
-
-  ESP_LOGI(TAG, "Received interrupt on GPIO%i", config->gpio);
-  ESP_LOGI(TAG, "Elasped ms since last event: %i", ELASPED_MS);
-
-  /* TODO handle this with task create? */
-  (config->callback)(event_type, LEVEL);
 }
 
-uint32_t get_elapsed_time_ms(TickType_t *start) {
-  return portTICK_PERIOD_MS * (xTaskGetTickCount() - *start);
+static void button_task(void *parm) {
+  const button_config_t *const config = (button_config_t *)parm;
+  const TickType_t ticks_to_wait = pdMS_TO_TICKS(config->hold_ms);
+  TickType_t ticks_elapsed;
+
+  while (true) {
+    /* Block here waiting for button press */
+    ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
+
+    /* Button pressed, measure time to release or timeout */
+    ticks_elapsed = xTaskGetTickCount();
+    ESP_LOGI(TAG, "Button pressed on GPIO %i, waiting for release",
+             config->gpio);
+    bool button_released = ulTaskNotifyTake(pdTRUE, ticks_to_wait);
+    ticks_elapsed = xTaskGetTickCount() - ticks_elapsed;
+    ESP_LOGI(TAG, "Button released after %i ms",
+             ticks_elapsed * portTICK_PERIOD_MS);
+
+    /* Determine press vs hold */
+    if (ticks_elapsed * portTICK_PERIOD_MS >= config->hold_ms) {
+      ESP_LOGI(TAG, "Detected button hold");
+      config->callback(BUTTON_HOLD);
+    } else {
+      ESP_LOGI(TAG, "Detected button press");
+      config->callback(BUTTON_PRESS);
+    }
+
+    /* If we timed out waiting for release, block here until user releases
+     * button */
+    if (!button_released) {
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    }
+
+    /* Delay for debounce */
+    vTaskDelay(pdMS_TO_TICKS(config->debounce_ms));
+  }
 }

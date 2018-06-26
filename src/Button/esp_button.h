@@ -7,6 +7,7 @@
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_event_loop.h"
+#include "esp_intr_alloc.h"
 #include "esp_log.h"
 #include "gpio.h"
 
@@ -21,7 +22,7 @@ typedef enum {
   BUTTON_MAX
 } button_event_t;
 
-typedef void (*button_callback_t)(button_event_t, int);
+typedef void (*button_callback_t)(button_event_t);
 
 typedef struct {
   gpio_num_t gpio;
@@ -29,6 +30,9 @@ typedef struct {
   button_callback_t callback;
   uint32_t debounce_ms;
   uint32_t hold_ms;
+  uint16_t cb_stack_size;
+  TaskHandle_t task;
+
 } button_config_t;
 
 esp_err_t esp_button_config(button_config_t *config);
