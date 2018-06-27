@@ -34,9 +34,10 @@ void app_main() {
   esp_button_config(&config);
   config.gpio = GPIO_NUM_0;
   config.callback = &cb;
+  config.pull = BUTTON_PULL_HIGH;
+  config.pressed_state = 0;
   ESP_ERROR_CHECK(esp_add_button(&config));
-  gpio_set_pull_mode(GPIO_NUM_0, GPIO_PULLUP_ONLY);
-  gpio_pullup_en(GPIO_NUM_0);
+
   xTaskCreate(task, "task", 2048, nullptr, 5, nullptr);
   while (true) {
     vTaskDelay(portMAX_DELAY);

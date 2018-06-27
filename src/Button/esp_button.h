@@ -15,26 +15,48 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 
-#define BUTTON_DEFAULT_DEBOUNCE_MS 30
+#define BUTTON_INTR_FLAGS \
+  ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LOWMED | ESP_INTR_FLAG_EDGE
+
+#define BUTTON_DEFAULT_DEBOUNCE_MS 5
 #define BUTTON_DEFAULT_HOLD_MS 3000
 #define BUTTON_DEFAULT_STACK_SIZE 4096
+#define BUTTON_DEFAULT_TASK_PRIORITY 10
+
+#define BUTTON_BIT_PRESSED 1
 
 typedef enum {
-  BUTTON_PRESS = 0,
-  BUTTON_HOLD,
-  BUTTON_BOUNCE,
+  BUTTON_RELEASED = 0,
+  BUTTON_TRIGGERED = 1,
+  BUTTON_PRESS = 2,
+  BUTTON_HOLD = 3,
   BUTTON_MAX
 } button_event_t;
+
+typedef enum {
+  BUTTON_PULL_NONE = 0,
+  BUTTON_PULL_LOW,
+  BUTTON_PULL_HIGH,
+  BUTTON_PULL_MAX
+} button_pull_t;
+
+typedef enum {
+  BUTTON_INTR_POSEDGE,
+  BUTTON_INTR_NEGEDGE,
+  BUTTON_INTR_MAX
+} button_int_t;
 
 typedef void (*button_callback_t)(button_event_t);
 
 typedef struct {
-  gpio_num_t gpio;      /*!< GPIO to use for the button >*/
-  gpio_int_type_t type; /*!< Interrupt type, typically GPIO_INTR_LOW_LEVEL >*/
+  gpio_num_t gpio;   /*!< GPIO to use for the button >*/
+  button_int_t type; /*!< Edge to interrupt on >*/
+  button_pull_t pull;
   button_callback_t callback; /*!< Callback to run on button press >*/
   uint32_t debounce_ms;   /*!< Milliseconds to wait for debouncing of input >*/
   uint32_t hold_ms;       /*!< Milliseconds for press vs hold >*/
   uint16_t cb_stack_size; /*!< Stack size of the task running your callback >*/
+  uint8_t cb_task_priority;
   TaskHandle_t task;
 } button_config_t;
 
