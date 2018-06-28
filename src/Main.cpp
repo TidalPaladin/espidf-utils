@@ -29,14 +29,13 @@ static void task(void *parm) {
 void cb(button_event_t event) { ESP_LOGI("cb", "Start callback!!"); }
 
 void app_main() {
-  ESP_ERROR_CHECK(esp_button_init());
+  ESP_ERROR_CHECK(xButtonInit());
   button_config_t config;
-  esp_button_config(&config);
+  xButtonDefaultConfig(&config);
   config.gpio = GPIO_NUM_0;
   config.callback = &cb;
-  config.pull = BUTTON_PULL_HIGH;
-  config.pressed_state = 0;
-  ESP_ERROR_CHECK(esp_add_button(&config));
+  config.type = BUTTON_INTR_NEGEDGE;
+  ESP_ERROR_CHECK(xButtonAdd(&config));
 
   xTaskCreate(task, "task", 2048, nullptr, 5, nullptr);
   while (true) {

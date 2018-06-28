@@ -15,15 +15,24 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 
-#define BUTTON_INTR_FLAGS \
+#define BUTTON_DEBUG_PIN (gpio_num_t)2
+
+#define buttonTAG "button"
+#define buttonINTR_FLAGS \
   ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LOWMED | ESP_INTR_FLAG_EDGE
 
-#define BUTTON_DEFAULT_DEBOUNCE_MS 5
-#define BUTTON_DEFAULT_HOLD_MS 3000
-#define BUTTON_DEFAULT_STACK_SIZE 4096
-#define BUTTON_DEFAULT_TASK_PRIORITY 10
+#define buttonCHECK(func) do {esp_err_t r=(func); if(r != ESP_OK) return (r);}while(0)
 
-#define BUTTON_BIT_PRESSED 1
+#define buttonDEFAULT_DEBOUNCE_MS 5
+#define buttonDEFAULT_HOLD_MS 3000
+#define buttonDEFAULT_STACK_SIZE 4096
+#define buttonDEFAULT_TASK_PRIORITY 10
+
+#define buttonBIT_PRESSED 1
+
+#ifndef buttonQUEUE_SIZE
+#define buttonQUEUE_SIZE 2
+#endif
 
 typedef enum {
   BUTTON_RELEASED = 0,
@@ -40,24 +49,16 @@ typedef enum {
   BUTTON_PULL_MAX
 } button_pull_t;
 
-typedef enum {
-  BUTTON_INTR_POSEDGE,
-  BUTTON_INTR_NEGEDGE,
-  BUTTON_INTR_MAX
-} button_int_t;
+
 
 typedef void (*button_callback_t)(button_event_t);
 
 typedef struct {
-  gpio_num_t gpio;   /*!< GPIO to use for the button >*/
-  button_int_t type; /*!< Edge to interrupt on >*/
-  button_pull_t pull;
+  gpio_num_t gpio;            /*!< GPIO to use for the button >*/
+  gpio_int_type_t type;          /*!< Ezdge to interrupt on >*/
   button_callback_t callback; /*!< Callback to run on button press >*/
-  uint32_t debounce_ms;   /*!< Milliseconds to wait for debouncing of input >*/
-  uint32_t hold_ms;       /*!< Milliseconds for press vs hold >*/
-  uint16_t cb_stack_size; /*!< Stack size of the task running your callback >*/
-  uint8_t cb_task_priority;
-  TaskHandle_t task;
+  uint32_t hold_ms;           /*!< Milliseconds for press vs hold >*/
+
 } button_config_t;
 
 /**
@@ -69,14 +70,14 @@ typedef struct {
  *
  * @return ESP_OK on success, ESP_ERR_INVALID_ARG on bad config
  */
-esp_err_t esp_button_config(button_config_t *config);
+esp_err_t xButtonDefaultConfig(button_config_t *pxConfig);
 
 /**
  * Installs the ISR service using gpio_install_isr_service()
  *
  * @return result of gpio_install_isr_service()
  */
-esp_err_t esp_button_init();
+esp_err_t xButtonInit();
 
 /**
  * Create a new button instance
@@ -90,7 +91,7 @@ esp_err_t esp_button_init();
  *  - Other esp_err_t if one of the interrupt init commands failed
  *  - ESP_OK on success
  */
-esp_err_t esp_add_button(button_config_t *config);
+esp_err_t xButtonAdd(button_config_t *pxConfig);
 
 /**
  * Destroys a button instance
@@ -101,13 +102,13 @@ esp_err_t esp_add_button(button_config_t *config);
  *
  * @return Result of gpio_isr_handler_remove()
  */
-esp_err_t esp_remove_button(button_config_t *config);
+esp_err_t xButtonRemove(button_config_t *pxConfig);
 
 /**
  * Uninstalls the ISR service with gpio_uninstall_isr_service()
  *
  * @return ESP_OK
  */
-esp_err_t esp_button_deinit();
+esp_err_t xButtonDeinit();
 
 #endif
