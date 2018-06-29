@@ -35,11 +35,15 @@
 #define buttonTAG "button"
 #define buttonINTR_FLAGS ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LOWMED
 
-#define buttonCHECK(func)        \
-  do {                           \
-    esp_err_t r = (func);        \
-    if (r != ESP_OK) return (r); \
-  } while (0)
+#define buttonCHECK(func)                                                     \
+  do {                                                                        \
+    esp_err_t _err_chk = (func);                                              \
+    if (_err_chk != ESP_OK) {                                                 \
+      ESP_LOGE(buttonTAG, "Failed %s at %s:%s with code %i", #func, __FILE__, \
+               __LINE__, _err_chk);                                           \
+      return _err_chk;                                                        \
+    }                                                                         \
+  } while (0);
 
 #define buttonDEFAULT_DEBOUNCE_MS 15
 #define buttonDEFAULT_HOLD_MS 3000

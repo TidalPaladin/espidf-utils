@@ -177,7 +177,9 @@ esp_err_t xButtonRemove(button_config_t *pxConfig) {
   }
 
   ESP_LOGI(buttonTAG, "Removing button on GPIO %i", pxConfig->gpio);
-  return gpio_isr_handler_remove(pxConfig->gpio);
+  buttonCHECK(gpio_set_intr_type(pxConfig->gpio, GPIO_INTR_DISABLE));
+  buttonCHECK(gpio_isr_handler_remove(pxConfig->gpio));
+  return ESP_OK;
 }
 
 esp_err_t xButtonDeinit() {
