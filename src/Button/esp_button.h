@@ -17,13 +17,31 @@
 
 #define BUTTON_DEBUG_PIN (gpio_num_t)2
 
+#ifdef BUTTON_DEBUG_PIN
+#define vButtonDebugBlip(level)               \
+  do {                                        \
+    gpio_set_level(BUTTON_DEBUG_PIN, level);  \
+    gpio_set_level(BUTTON_DEBUG_PIN, !level); \
+    gpio_set_level(BUTTON_DEBUG_PIN, level);  \
+  } while (0)
+
+#define vButtonDebugFlip() \
+  gpio_set_level(BUTTON_DEBUG_PIN, !gpio_get_level(BUTTON_DEBUG_PIN))
+#else
+#define vButtonDebugBlip(level)
+#define vButtonDebugFlip
+#endif
+
 #define buttonTAG "button"
-#define buttonINTR_FLAGS \
-  ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LOWMED | ESP_INTR_FLAG_EDGE
+#define buttonINTR_FLAGS ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LOWMED
 
-#define buttonCHECK(func) do {esp_err_t r=(func); if(r != ESP_OK) return (r);}while(0)
+#define buttonCHECK(func)        \
+  do {                           \
+    esp_err_t r = (func);        \
+    if (r != ESP_OK) return (r); \
+  } while (0)
 
-#define buttonDEFAULT_DEBOUNCE_MS 5
+#define buttonDEFAULT_DEBOUNCE_MS 15
 #define buttonDEFAULT_HOLD_MS 3000
 #define buttonDEFAULT_STACK_SIZE 4096
 #define buttonDEFAULT_TASK_PRIORITY 10
@@ -49,15 +67,14 @@ typedef enum {
   BUTTON_PULL_MAX
 } button_pull_t;
 
-
-
 typedef void (*button_callback_t)(button_event_t);
 
 typedef struct {
   gpio_num_t gpio;            /*!< GPIO to use for the button >*/
-  gpio_int_type_t type;          /*!< Ezdge to interrupt on >*/
+  gpio_int_type_t type;       /*!< Ezdge to interrupt on >*/
   button_callback_t callback; /*!< Callback to run on button press >*/
   uint32_t hold_ms;           /*!< Milliseconds for press vs hold >*/
+  TickType_t last_event;
 
 } button_config_t;
 

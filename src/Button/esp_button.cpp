@@ -1,64 +1,120 @@
 #include "esp_button.h"
 
 /**
- * 
+ *
  * ISR bound to low or high level with pull resistor automatically set
- * 
+ *
  * Interrupts disabled for given button in ISR for debouncing
  * Later processing requested using RTOS daemon / task
- * 
+ *
  * Processor discriminates press vs release
  * Processor starts timer to re-enable interrupt after deboune period
- * 
- * 
+ *
+ *
  */
 
 typedef struct {
   button_config_t *pxConfig;
   TickType_t xLastTickCount;
+  bool bGpioLevel;
 
 } button_handler_t;
 
+TaskHandle_t xButtonTask, xDebounceTask;
+QueueHandle_t xButtonQueue;
 QueueHandle_t xDebounceQueue;
 
+portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+
 /* The handler for GPIO interrupts */
-static void vButtonInterruptHandler(void *pvParm);
+static void vButtonInterruptHandler(void *pvParm) {
+  portENTER_CRITICAL_ISR(&mux);
+  button_config_t *pxButtonConfig = (button_config_t *)pvParm;
+  if (pxButtonConfig->last_event - xTaskGetTickCountFromISR() <=
+      pdMS_TO_TICKS(15)) {
+    portEXIT_CRITICAL_ISR(&mux);
+    return;
+  }
+  vButtonDebugFlip();
+  gpio_set_intr_type(pxButtonConfig->gpio, GPIO_INTR_DISABLE);
 
-/* The deferred handler that processes interrupts after the interrupt */
-static void vDeferredHandlingFunction(void *pvParm, uint32_t ulParm);
+  /* Request deferred processing */
+  button_handler_t handler;
+  handler.pxConfig = pxButtonConfig;
+  handler.bGpioLevel = gpio_get_level(pxButtonConfig->gpio);
+  handler.xLastTickCount = xTaskGetTickCountFromISR();
 
-/* The timer used to re-enable interrupts after debounce period */
-static void vTimerCallback(TimerHandle_t xTimer) {
-  button_config_t *xButtonDequeued;
-  
-  /* Process all queued buttons that need ISR modifications */
-  BaseType_t xQueueItemReceived = xQueueReceive(xDebounceQueue, (void*)xButtonDequeued, 0);
-  while(xQueueItemReceived == pdTRUE) {
-    gpio_set_intr_type(xButtonDequeued->gpio, xButtonDequeued->type);
-    xQueueItemReceived = xQueueReceive(xDebounceQueue, (void*)&xButtonDequeued, 0);
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+  xQueueSendFromISR(xButtonQueue, (void *)&handler, &xHigherPriorityTaskWoken);
+  portEXIT_CRITICAL_ISR(&mux);
+
+  if (xHigherPriorityTaskWoken == pdTRUE) {
+    portYIELD_FROM_ISR();
   }
 }
 
-/* Called from the deferred handler to process button release */
-static void vButtonHandleRelease(button_config_t *pxButtonConfig, TickType_t xNewTickCount) {
-    const uint32_t xTicksElapsed = xNewTickCount - pxButtonConfig->last_wake;
-    const uint32_t xTicksHoldThreshold = pdMS_TO_TICKS(pxButtonConfig->hold_ms);
-    
-    /* Discriminate press vs hold based on duration */
-    button_event_t xEvent;
-    if(xTicksElapsed >= xTicksHoldThreshold) {
-      xEvent = BUTTON_PRESS;
-    } else {
-      xEvent = BUTTON_HOLD;
-    }
-
-    ESP_LOGI(buttonTAG, "Button %s on IO %i",
-             xEvent == BUTTON_PRESS ? "press" : "hold", pxButtonConfig->gpio);
-    pxButtonConfig->callback(xEvent);
+static bool bWasButtonPressed(button_handler_t *pxButton) {
+  if (pxButton->bGpioLevel) {
+    return pxButton->pxConfig->type == GPIO_INTR_HIGH_LEVEL;
+  } else {
+    return pxButton->pxConfig->type == GPIO_INTR_LOW_LEVEL;
+  }
 }
 
-static void vButtonHandlePress(button_config_t *pxButtonConfig, TickType_t xNewTickCount) {
-  pxButtonConfig->last_wake = xNewTickCount;
+static void vButtonEventTask(void *pvParm) {
+  button_handler_t xButtonQueued;
+
+  for (;;) {
+    /* Wait for button to be queued from ISR trigger*/
+    xQueueReceive(xButtonQueue, (void *)&xButtonQueued, portMAX_DELAY);
+    ESP_LOGI(buttonTAG, "Received button event");
+
+    /* Discriminate button press vs release */
+    if (bWasButtonPressed(&xButtonQueued)) {
+      xButtonQueued.pxConfig->last_event = xButtonQueued.xLastTickCount;
+    } else {
+      xButtonQueued.xLastTickCount -= xButtonQueued.pxConfig->last_event;
+      if (pdMS_TO_TICKS(xButtonQueued.xLastTickCount) >=
+          xButtonQueued.pxConfig->hold_ms) {
+        ESP_LOGI(buttonTAG, "HOLD");
+        xButtonQueued.pxConfig->callback(BUTTON_HOLD);
+      } else {
+        ESP_LOGI(buttonTAG, "PRESS");
+        xButtonQueued.pxConfig->callback(BUTTON_PRESS);
+      }
+    }
+
+    xQueueSend(xDebounceQueue, (void *)&xButtonQueued, portMAX_DELAY);
+  }
+}
+
+/* The timer used to re-enable interrupts after debounce period */
+static void vDebounceEndTask(void *pvParm) {
+  button_handler_t xButtonDequeued;
+  ESP_LOGI(buttonTAG, "Started debounce handler task");
+
+  for (;;) {
+    /* Wait for button to be queued to exit debounce state */
+    xQueueReceive(xDebounceQueue, (void *)&xButtonDequeued, portMAX_DELAY);
+    ESP_LOGI(buttonTAG, "Received button debounce release IO %i",
+             xButtonDequeued.pxConfig->gpio);
+
+    /* Delay until it is time to exit debounce state */
+    vTaskDelayUntil(&xButtonDequeued.xLastTickCount, 1);
+
+    /* Set interrupt level to opposite of level that triggered interrupt */
+    gpio_int_type_t eNewInterrupt;
+    if (xButtonDequeued.bGpioLevel) {
+      eNewInterrupt = GPIO_INTR_LOW_LEVEL;
+      ESP_LOGI(buttonTAG, "Setting new interrupt to LOW_LEVEL");
+    } else {
+      eNewInterrupt = GPIO_INTR_HIGH_LEVEL;
+      ESP_LOGI(buttonTAG, "Setting new interrupt to HIGH_LEVEL");
+    }
+    vButtonDebugFlip();
+    vButtonDebugFlip();
+    gpio_set_intr_type(xButtonDequeued.pxConfig->gpio, eNewInterrupt);
+  }
 }
 
 esp_err_t xButtonDefaultConfig(button_config_t *pxConfig) {
@@ -75,12 +131,14 @@ esp_err_t xButtonInit() {
   ESP_LOGI(buttonTAG, "Registering isr");
 
 #ifdef BUTTON_DEBUG_PIN
-  gpio_set_direction(BUTTON_DEBUG_PIN, GPIO_MODE_OUTPUT);
+  gpio_set_direction(BUTTON_DEBUG_PIN, GPIO_MODE_INPUT_OUTPUT);
 #endif
 
-  /* Create the timer / queue debounce system */
-  xDebounceQueue = xQueueCreate(buttonQUEUE_SIZE, sizeof(button_config_t*));
-  xTimerCreate("debounce", pdMS_TO_TICKS(10), pdFALSE, NULL, vTimerCallback);
+  /* Create the task / queue debounce system */
+  xButtonQueue = xQueueCreate(buttonQUEUE_SIZE, sizeof(button_handler_t));
+  xDebounceQueue = xQueueCreate(buttonQUEUE_SIZE, sizeof(button_handler_t));
+  xTaskCreate(vButtonEventTask, "but_event", 4096, NULL, 10, &xButtonTask);
+  xTaskCreate(vDebounceEndTask, "but_bounce", 4096, NULL, 10, &xDebounceTask);
 
   /* Use gpio_install_isr_service() for per GPIO ISR */
   buttonCHECK(gpio_install_isr_service(buttonINTR_FLAGS));
@@ -98,7 +156,7 @@ esp_err_t xButtonAdd(button_config_t *pxConfig) {
   /* Enable interrupt on GPIO */
   buttonCHECK(gpio_set_direction(pxConfig->gpio, GPIO_MODE_INPUT));
   buttonCHECK(gpio_set_pull_mode(pxConfig->gpio, GPIO_PULLUP_PULLDOWN));
-  if(pxConfig->type == GPIO_INTR_NEGEDGE) {
+  if (pxConfig->type == GPIO_INTR_LOW_LEVEL) {
     buttonCHECK(gpio_pullup_en(pxConfig->gpio));
   } else {
     buttonCHECK(gpio_pulldown_en(pxConfig->gpio));
@@ -106,7 +164,7 @@ esp_err_t xButtonAdd(button_config_t *pxConfig) {
 
   /* Add button to ISR handler and create task */
   buttonCHECK(gpio_isr_handler_add(pxConfig->gpio, vButtonInterruptHandler,
-                                (void *)pxConfig));
+                                   (void *)pxConfig));
   buttonCHECK(gpio_set_intr_type(pxConfig->gpio, pxConfig->type));
   buttonCHECK(gpio_intr_enable(pxConfig->gpio));
   return ESP_OK;
@@ -125,46 +183,9 @@ esp_err_t xButtonRemove(button_config_t *pxConfig) {
 esp_err_t xButtonDeinit() {
   ESP_LOGI(buttonTAG, "Unregistering isr");
   gpio_uninstall_isr_service();
+  vTaskDelete(xButtonTask);
+  vTaskDelete(xDebounceTask);
+  vQueueDelete(xButtonQueue);
+  vQueueDelete(xDebounceQueue);
   return ESP_OK;
-}
-
-static void vButtonInterruptHandler(void *pvParm) {
-  /* Latch GPIO as debounce mechanism */
-  button_config_t *pxButtonConfig = (button_config_t *)pvParm;
-  gpio_pad_hold(pxButtonConfig->gpio);
-  gpio_set_intr_type(pxButtonConfig->gpio, GPIO_INTR_DISABLE);
-
-#ifdef BUTTON_DEBUG_PIN
-  static bool level = false;
-  gpio_set_level(BUTTON_DEBUG_PIN, level);
-  level = !level;
-#endif
-
-  /* Request deferred processing */
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  xTimerPendFunctionCallFromISR(vDeferredHandlingFunction, pvParm,
-                                xTaskGetTickCountFromISR(),
-                                &xHigherPriorityTaskWoken);
-
-  if (xHigherPriorityTaskWoken == pdTRUE) {
-    portYIELD_FROM_ISR();
-  }
-}
-
-static void vDeferredHandlingFunction(void *pvParm, uint32_t ulParm) {
-  button_config_t *pxButtonConfig = (button_config_t *)pvParm;
-  const bool bGpioLevel = gpio_get_level(pxButtonConfig->gpio);
-  gpio_pad_unhold(pxButtonConfig->gpio);
-  gpio_int_type_t xNewInterruptType;
-
-  if(bGpioLevel && (pxButtonConfig->type == GPIO_INTR_POSEDGE)) {
-    /* Button depressed */
-    pxButtonConfig->last_wake = ulParm;
-    xNewInterruptType = GPIO_INT
-  } else {
-    /* Button released */
-    xNewInterruptType = pxButtonConfig->type;
-  }
-
-  gpio_set_intr_type(pxButtonConfig->gpio, GPIO_INTR_ANYEDGE);
 }

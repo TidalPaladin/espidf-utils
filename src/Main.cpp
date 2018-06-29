@@ -34,7 +34,7 @@ void app_main() {
   xButtonDefaultConfig(&config);
   config.gpio = GPIO_NUM_0;
   config.callback = &cb;
-  config.type = BUTTON_INTR_NEGEDGE;
+  config.type = GPIO_INTR_LOW_LEVEL;
   ESP_ERROR_CHECK(xButtonAdd(&config));
 
   xTaskCreate(task, "task", 2048, nullptr, 5, nullptr);
