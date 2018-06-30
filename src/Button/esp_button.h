@@ -10,6 +10,8 @@
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
 #include "gpio.h"
+#include "soc/gpio_reg.h"
+#include "soc/soc.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
@@ -39,11 +41,13 @@
   do {                                                                        \
     esp_err_t _err_chk = (func);                                              \
     if (_err_chk != ESP_OK) {                                                 \
-      ESP_LOGE(buttonTAG, "Failed %s at %s:%s with code %i", #func, __FILE__, \
+      ESP_LOGE(buttonTAG, "Failed %s at %s:%i with code %i", #func, __FILE__, \
                __LINE__, _err_chk);                                           \
       return _err_chk;                                                        \
     }                                                                         \
   } while (0);
+
+#define eButtonIntrType(gpio) ((gpio_int_type_t)GPIO.pin[gpio].int_type)
 
 #define buttonDEFAULT_DEBOUNCE_MS 15
 #define buttonDEFAULT_HOLD_MS 3000
@@ -78,8 +82,6 @@ typedef struct {
   gpio_int_type_t type;       /*!< Ezdge to interrupt on >*/
   button_callback_t callback; /*!< Callback to run on button press >*/
   uint32_t hold_ms;           /*!< Milliseconds for press vs hold >*/
-  TickType_t last_event;
-
 } button_config_t;
 
 /**
@@ -123,7 +125,7 @@ esp_err_t xButtonAdd(button_config_t *pxConfig);
  *
  * @return Result of gpio_isr_handler_remove()
  */
-esp_err_t xButtonRemove(button_config_t *pxConfig);
+esp_err_t xButtonRemove(gpio_num_t gpio);
 
 /**
  * Uninstalls the ISR service with gpio_uninstall_isr_service()
