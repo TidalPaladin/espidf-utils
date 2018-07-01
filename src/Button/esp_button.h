@@ -1,9 +1,6 @@
 #ifndef __ESP_BUTTON_H__
 #define __ESP_BUTTON_H__
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_event_loop.h"
@@ -12,6 +9,9 @@
 #include "gpio.h"
 #include "soc/gpio_reg.h"
 #include "soc/soc.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
@@ -20,15 +20,15 @@
 #define BUTTON_DEBUG_PIN (gpio_num_t)2
 
 #ifdef BUTTON_DEBUG_PIN
-#define vButtonDebugBlip(level)               \
-  do {                                        \
-    gpio_set_level(BUTTON_DEBUG_PIN, level);  \
-    gpio_set_level(BUTTON_DEBUG_PIN, !level); \
-    gpio_set_level(BUTTON_DEBUG_PIN, level);  \
-  } while (0)
+#define vButtonDebugBlip(level)                   \
+    do {                                          \
+        gpio_set_level(BUTTON_DEBUG_PIN, level);  \
+        gpio_set_level(BUTTON_DEBUG_PIN, !level); \
+        gpio_set_level(BUTTON_DEBUG_PIN, level);  \
+    } while (0)
 
 #define vButtonDebugFlip() \
-  gpio_set_level(BUTTON_DEBUG_PIN, !gpio_get_level(BUTTON_DEBUG_PIN))
+    gpio_set_level(BUTTON_DEBUG_PIN, !gpio_get_level(BUTTON_DEBUG_PIN))
 #else
 #define vButtonDebugBlip(level)
 #define vButtonDebugFlip
@@ -37,15 +37,15 @@
 #define buttonTAG "button"
 #define buttonINTR_FLAGS ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LOWMED
 
-#define buttonCHECK(func)                                                     \
-  do {                                                                        \
-    esp_err_t _err_chk = (func);                                              \
-    if (_err_chk != ESP_OK) {                                                 \
-      ESP_LOGE(buttonTAG, "Failed %s at %s:%i with code %i", #func, __FILE__, \
-               __LINE__, _err_chk);                                           \
-      return _err_chk;                                                        \
-    }                                                                         \
-  } while (0);
+#define buttonCHECK(func)                                                           \
+    do {                                                                            \
+        esp_err_t _err_chk = (func);                                                \
+        if (_err_chk != ESP_OK) {                                                   \
+            ESP_LOGE(buttonTAG, "Failed %s at %s:%i with code %i", #func, __FILE__, \
+                __LINE__, _err_chk);                                                \
+            return _err_chk;                                                        \
+        }                                                                           \
+    } while (0);
 
 #define eButtonIntrType(gpio) ((gpio_int_type_t)GPIO.pin[gpio].int_type)
 
@@ -61,27 +61,27 @@
 #endif
 
 typedef enum {
-  BUTTON_RELEASED = 0,
-  BUTTON_TRIGGERED = 1,
-  BUTTON_PRESS = 2,
-  BUTTON_HOLD = 3,
-  BUTTON_MAX
+    BUTTON_RELEASED = 0,
+    BUTTON_TRIGGERED = 1,
+    BUTTON_PRESS = 2,
+    BUTTON_HOLD = 3,
+    BUTTON_MAX
 } button_event_t;
 
 typedef enum {
-  BUTTON_PULL_NONE = 0,
-  BUTTON_PULL_LOW,
-  BUTTON_PULL_HIGH,
-  BUTTON_PULL_MAX
+    BUTTON_PULL_NONE = 0,
+    BUTTON_PULL_LOW,
+    BUTTON_PULL_HIGH,
+    BUTTON_PULL_MAX
 } button_pull_t;
 
 typedef void (*button_callback_t)(button_event_t);
 
 typedef struct {
-  gpio_num_t gpio;            /*!< GPIO to use for the button >*/
-  gpio_int_type_t type;       /*!< Ezdge to interrupt on >*/
-  button_callback_t callback; /*!< Callback to run on button press >*/
-  uint32_t hold_ms;           /*!< Milliseconds for press vs hold >*/
+    gpio_num_t gpio; /*!< GPIO to use for the button >*/
+    gpio_int_type_t type; /*!< Ezdge to interrupt on >*/
+    button_callback_t callback; /*!< Callback to run on button press >*/
+    uint32_t hold_ms; /*!< Milliseconds for press vs hold >*/
 } button_config_t;
 
 /**
@@ -93,7 +93,7 @@ typedef struct {
  *
  * @return ESP_OK on success, ESP_ERR_INVALID_ARG on bad config
  */
-esp_err_t xButtonDefaultConfig(button_config_t *pxConfig);
+esp_err_t xButtonDefaultConfig(button_config_t* pxConfig);
 
 /**
  * Installs the ISR service using gpio_install_isr_service()
@@ -114,7 +114,7 @@ esp_err_t xButtonInit();
  *  - Other esp_err_t if one of the interrupt init commands failed
  *  - ESP_OK on success
  */
-esp_err_t xButtonAdd(button_config_t *pxConfig);
+esp_err_t xButtonAdd(button_config_t* pxConfig);
 
 /**
  * Destroys a button instance
