@@ -69,9 +69,11 @@ static void vButtonInterruptHandler(void* pvParm)
     portENTER_CRITICAL_ISR(&mux);
     vButtonDebugFlip();
 
+    /* Flip interrupt type */
     button_handler_t* pxButton = (button_handler_t*)pvParm;
     eInvertInterruptType(pxButton);
 
+    /* Push button to task queue for deferred processing */
     BaseType_t xHigherPriorityTaskWoken;
     xQueueSendFromISR(xButtonQueue, (void*)pxButton, &xHigherPriorityTaskWoken);
     portEXIT_CRITICAL_ISR(&mux);
@@ -99,6 +101,35 @@ static uint32_t ulGetPressDurationMs(button_handler_t* pxButton)
 }
 
 /**
+ * @brief Processes actions to take on button release
+ * 
+ * @param pxButton  Pointer to the button to process
+ * 
+ */
+static void vButtonProcessRelease(button_handler_t* pxButton)
+{
+
+    uint32_t ulDurationMs = pxButton->xTickCountRelease - pxButton->xTickCountPress;
+    ulDurationMs *= portTICK_PERIOD_MS;
+
+    // TODO give variable name to debounce threshold
+    if (ulDurationMs < pdMS_TO_TICKS(20)) {
+        // NO-OP, pulse too short
+        ESP_LOGV(buttonTAG, "Ignoring short pulse");
+        return;
+    }
+
+    /* Pulse was of valid length, run press / hold callback */
+    if (ulDurationMs >= pxButton->xConfig.hold_ms) {
+        ESP_LOGI(buttonTAG, "HOLD");
+        pxButton->xConfig.callback(BUTTON_HOLD);
+    } else {
+        ESP_LOGI(buttonTAG, "PRESS");
+        pxButton->xConfig.callback(BUTTON_PRESS);
+    }
+}
+
+/**
  * @brief Task used to handle deferred processing of interrupts. Unblocks on enqueue
  * from ISR.
  * 
@@ -111,7 +142,9 @@ static void vButtonEventTask(void* pvParm)
     button_handler_t* pxButtonQueued = NULL;
     volatile button_config_t* pxConfig = NULL;
 
+    /* Begin blocking loop */
     while (1) {
+
         /* Wait for button to be queued from ISR trigger*/
         xQueueReceive(xButtonQueue, (void*)&pxButtonQueued, portMAX_DELAY);
         ESP_LOGI(buttonTAG, "Received button event");
@@ -126,17 +159,6 @@ static void vButtonEventTask(void* pvParm)
         } else {
             /* Button released, calculate time button was held */
             pxButtonQueued->xTickCountRelease = xTaskGetTickCount();
-            const uint32_t ulPressDurationMs = ulGetPressDurationMs(pxButtonQueued);
-
-            if (ulPressDurationMs < pdMS_TO_TICKS(20)) {
-                // NO-OP, pulse too short
-            } else if (ulPressDurationMs >= pxConfig->hold_ms) {
-                ESP_LOGI(buttonTAG, "HOLD");
-                pxConfig->callback(BUTTON_HOLD);
-            } else {
-                ESP_LOGI(buttonTAG, "PRESS");
-                pxConfig->callback(BUTTON_PRESS);
-            }
         }
     }
 }
