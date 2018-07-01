@@ -37,6 +37,7 @@
 #define buttonTAG "button"
 #define buttonINTR_FLAGS ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LOWMED
 
+/* Check an esp_err_t and return result if not ESP_OK */
 #define buttonCHECK(func)                                                           \
     do {                                                                            \
         esp_err_t _err_chk = (func);                                                \
@@ -103,7 +104,7 @@ esp_err_t xButtonDefaultConfig(button_config_t* pxConfig);
 esp_err_t xButtonInit();
 
 /**
- * Create a new button instance
+ * Create a new button instance. Config will be stored internally.
  *
  * @param config  The button config to use for the new button
  *

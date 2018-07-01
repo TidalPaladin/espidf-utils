@@ -23,7 +23,7 @@ typedef volatile struct {
     button_config_t xConfig;
     TickType_t xTickCountRelease;
     TickType_t xTickCountPress;
-    gpio_int_type_t eLastInterrupt;
+    gpio_int_type_t eCurrentInterruptType;
 } button_handler_t;
 
 TaskHandle_t xButtonTask;
@@ -31,34 +31,81 @@ QueueHandle_t xButtonQueue;
 
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
-/* The handler for GPIO interrupts */
+/**
+ * @brief Modifies the interrupt of a GPIO such that the pin
+ * will interrupt on the level opposite of it's current setting
+ * 
+ * @param pxButton	Pointer to the button handler
+ * 
+ * post: Interrupt of pxButton->xConfig.gpio modifed such that
+ * 			GPIO_INTR_LOW_LEVEL -> GPIO_INTR_HIGH_LEVEL
+ * 			GPIO_INTR_HIGH_LEVEL -> GPIO_INTR_LOW_LEVEL
+ * 
+ * @return The gpio_int_type_t that is now active for the given button
+ */
+static gpio_int_type_t eInvertInterruptType(button_handler_t* pxButton)
+{
+    gpio_int_type_t eNewInterrupt;
+    if (pxButton->eCurrentInterruptType == GPIO_INTR_LOW_LEVEL) {
+        eNewInterrupt = GPIO_INTR_HIGH_LEVEL;
+    } else {
+        eNewInterrupt = GPIO_INTR_LOW_LEVEL;
+    }
+    ESP_ERROR_CHECK(gpio_set_intr_type(pxButton->xConfig.gpio, eNewInterrupt));
+    return eNewInterrupt;
+}
+
+/**
+ * @brief Interrupt handler shared across all buttons
+ * 
+ * @param pvParm	Pointer to the button_handler_t that triggered the interrupt
+ * 
+ * post: 	eInvertInterruptType() called on interrupting pin
+ * 			Interrupting button queued for deferred processing
+ * 
+ */
 static void vButtonInterruptHandler(void* pvParm)
 {
     portENTER_CRITICAL_ISR(&mux);
     vButtonDebugFlip();
 
     button_handler_t* pxButton = (button_handler_t*)pvParm;
-    pxButton->eLastInterrupt = eButtonIntrType(pxButton->xConfig.gpio);
-    if (pxButton->eLastInterrupt == GPIO_INTR_LOW_LEVEL) {
-        gpio_set_intr_type(pxButton->xConfig.gpio, GPIO_INTR_HIGH_LEVEL);
-    } else {
-        gpio_set_intr_type(pxButton->xConfig.gpio, GPIO_INTR_LOW_LEVEL);
-    }
+    eInvertInterruptType(pxButton);
 
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    BaseType_t xHigherPriorityTaskWoken;
     xQueueSendFromISR(xButtonQueue, (void*)pxButton, &xHigherPriorityTaskWoken);
-
     portEXIT_CRITICAL_ISR(&mux);
+
+    /* If we woke a higher priority task from ISR, exit ISR to that task */
     if (xHigherPriorityTaskWoken == pdTRUE) {
         portYIELD_FROM_ISR();
     }
 }
 
+/**
+ * @brief Reads the currently assigned press and release tick counters for a button
+ * and computes the elapsed press duration in milliseconds.
+ * 
+ * pre: xTickCountPress and xTickCountRelease assigned to most current value
+ * 		xTickCountRelease >= xTickCountPress
+ * 
+ * @param pxButton	Pointer to the button to be processed
+ * 
+ * @return The milliseconds elapsed between xTickCountPress and xTickCountRelease
+ */
 static uint32_t ulGetPressDurationMs(button_handler_t* pxButton)
 {
     return portTICK_PERIOD_MS * (pxButton->xTickCountRelease - pxButton->xTickCountPress);
 }
 
+/**
+ * @brief Task used to handle deferred processing of interrupts. Unblocks on enqueue
+ * from ISR.
+ * 
+ * @param pvParm	NULL
+ * 
+ * @return Function never returns
+ */
 static void vButtonEventTask(void* pvParm)
 {
     button_handler_t* pxButtonQueued = NULL;
