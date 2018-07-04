@@ -19,6 +19,7 @@
  *
  */
 
+/* Button config wrapped into a struct with private members */
 typedef volatile struct {
     button_config_t xConfig;
     TickType_t xTickCountRelease;
@@ -26,9 +27,13 @@ typedef volatile struct {
     gpio_int_type_t eCurrentInterruptType;
 } button_handler_t;
 
+/* Handles deferred processing of buttons after ISR is triggered */
 TaskHandle_t xButtonTask;
+
+/* ISR enqueues to this queue for deferred processing */
 QueueHandle_t xButtonQueue;
 
+/* Used for portENTER_CRITICAL_ISR */
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 /**
