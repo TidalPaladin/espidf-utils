@@ -21,14 +21,6 @@
 extern "C" {
 #endif
 
-#define BUTTON_DEBUG_PIN (gpio_num_t)2
-
-#ifdef BUTTON_DEBUG_PIN
-#define ButtonDebugSetLevel(level) gpio_set_level(BUTTON_DEBUG_PIN, level)
-#else
-#define ButtonDebugSetLevel(level)
-#endif
-
 /* Check an esp_err_t and return result if not ESP_OK */
 #define buttonCHECK(func)                                                     \
   do {                                                                        \
@@ -46,8 +38,14 @@ extern "C" {
 #define BUTTON_HOLD_MS 3000
 #define BUTTON_TASK_PRIORITY 10
 
+/* Override the queue size for issues with multiple buttons firing at once */
 #ifndef BUTTON_QUEUE_SIZE
 #define BUTTON_QUEUE_SIZE 2
+#endif
+
+/* Manually set stack size */
+#ifndef BUTTON_STACK_SIZE
+#define BUTTON_STACK_SIZE (4096)
 #endif
 
 typedef enum {

@@ -26,14 +26,16 @@ static void task(void* parm) {
   }
 }
 
-void cb(button_event_t event) { ESP_LOGI("cb", "Start callback!!"); }
+void buttonCallback(button_event_t event) {
+  ESP_LOGI("cb", "Start callback!!");
+}
 
 void app_main() {
   ESP_ERROR_CHECK(ButtonInit());
   button_config_t config;
   ButtonDefaultConfig(&config);
   config.gpio_ = GPIO_NUM_0;
-  config.callback_ = &cb;
+  config.callback_ = &buttonCallback;
   config.type_ = GPIO_INTR_LOW_LEVEL;
   ESP_ERROR_CHECK(ButtonAdd(&config));
 

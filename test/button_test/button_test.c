@@ -1,4 +1,4 @@
-//#ifdef UNIT_TEST
+#ifdef UNIT_TEST
 #include "Button/esp_button.h"
 #include "unity.h"
 
@@ -30,4 +30,4 @@ void test_task(void *) {
 
 void app_main() { xTaskCreate(test_task, "test", 4096, NULL, 1, NULL); }
 
-//#endif
+#endif
