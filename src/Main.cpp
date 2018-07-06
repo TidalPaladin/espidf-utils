@@ -20,7 +20,7 @@ extern "C" {
 void app_main();
 }
 
-static void task(void *parm) {
+static void task(void* parm) {
   while (true) {
     vTaskDelay(portMAX_DELAY);
   }
@@ -29,13 +29,13 @@ static void task(void *parm) {
 void cb(button_event_t event) { ESP_LOGI("cb", "Start callback!!"); }
 
 void app_main() {
-  ESP_ERROR_CHECK(xButtonInit());
+  ESP_ERROR_CHECK(ButtonInit());
   button_config_t config;
-  xButtonDefaultConfig(&config);
-  config.gpio = GPIO_NUM_0;
-  config.callback = &cb;
-  config.type = GPIO_INTR_LOW_LEVEL;
-  ESP_ERROR_CHECK(xButtonAdd(&config));
+  ButtonDefaultConfig(&config);
+  config.gpio_ = GPIO_NUM_0;
+  config.callback_ = &cb;
+  config.type_ = GPIO_INTR_LOW_LEVEL;
+  ESP_ERROR_CHECK(ButtonAdd(&config));
 
   xTaskCreate(task, "task", 2048, nullptr, 5, nullptr);
   while (true) {
