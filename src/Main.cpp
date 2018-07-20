@@ -26,7 +26,7 @@ static void task(void* parm) {
   }
 }
 
-void buttonCallback(button_event_t event) {
+static void buttonCallback(button_event_t event) {
   ESP_LOGI("cb", "Start callback!!");
 }
 
@@ -35,9 +35,10 @@ void app_main() {
   button_config_t config;
   ButtonDefaultConfig(&config);
   config.gpio_ = GPIO_NUM_0;
-  config.callback_ = &buttonCallback;
+  config.callback_ = buttonCallback;
   config.type_ = GPIO_INTR_LOW_LEVEL;
   ESP_ERROR_CHECK(ButtonAdd(&config));
+  config.callback_(kButtonHold);
 
   xTaskCreate(task, "task", 2048, nullptr, 5, nullptr);
   while (true) {
