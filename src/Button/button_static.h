@@ -34,10 +34,10 @@ static const uint32_t kButtonIntrFlags =
 
 /* Button config wrapped into a struct with private members */
 typedef struct {
-  volatile button_config_t button_config_;
-  volatile TickType_t tick_count_release_;
-  volatile TickType_t tick_count_press_;
-  volatile gpio_int_type_t current_interrupt_type_;
+  const button_config_t button_config_;
+  TickType_t tick_count_release_;
+  TickType_t tick_count_press_;
+  gpio_int_type_t current_interrupt_type_;
 } button_handler_t;
 
 /**
@@ -52,8 +52,7 @@ typedef struct {
  *
  * @return The gpio_int_type_t that is now active for the given button
  */
-static inline gpio_int_type_t UpdateInterruptType(
-    volatile button_handler_t* button) {
+static inline gpio_int_type_t UpdateInterruptType(button_handler_t* button) {
   assert(button != NULL && "Null button pointer");
   assert(button->current_interrupt_type_ != GPIO_INTR_DISABLE);
 
@@ -86,8 +85,7 @@ static void ButtonInterruptCallback(void* pvParm);
  *
  * @return BaseType_t pdTRUE
  */
-static inline BaseType_t ButtonIsrHandleDepress(
-    volatile button_handler_t* handler) {
+static inline BaseType_t ButtonIsrHandleDepress(button_handler_t* handler) {
   handler->tick_count_press_ = xTaskGetTickCountFromISR();
 
   /* Enable interrupts upon exit of ISR for button depress */
@@ -103,8 +101,7 @@ static inline BaseType_t ButtonIsrHandleDepress(
  *
  * @return pdTRUE if a higher priority task was woken, pdFALSE otherwise
  */
-static inline BaseType_t ButtonIsrHandleRelease(
-    volatile button_handler_t* handler) {
+static inline BaseType_t ButtonIsrHandleRelease(button_handler_t* handler) {
   handler->tick_count_release_ = xTaskGetTickCountFromISR();
 
   void* enqueue_ptr = (void*)&handler;
@@ -127,8 +124,7 @@ static inline BaseType_t ButtonIsrHandleRelease(
  * @return The milliseconds elapsed between tick_count_press_ and
  * tick_count_release_
  */
-static inline uint32_t GetPressDurationMillis(
-    volatile button_handler_t* button) {
+static inline uint32_t GetPressDurationMillis(const button_handler_t* button) {
   return portTICK_PERIOD_MS *
          (button->tick_count_release_ - button->tick_count_press_);
 }
@@ -139,7 +135,7 @@ static inline uint32_t GetPressDurationMillis(
  * @param button  Pointer to the button to process
  *
  */
-void ButtonProcessRelease(volatile button_handler_t* button) {
+void ButtonProcessRelease(const button_handler_t* const button) {
   assert(button != NULL);
 
   const uint32_t kElapsedMs = GetPressDurationMillis(button);
@@ -181,17 +177,15 @@ static void ButtonEventTask(void* /* Not used */);
  *
  * @return Pointer to the button handler in heap
  */
-static inline volatile button_handler_t* CopyConfigToHeap(
-    button_config_t* config) {
+static inline button_handler_t* CopyConfigToHeap(button_config_t* config) {
   /* Allocate heap for button handler */
   const size_t kSize = sizeof(button_handler_t);
-  volatile button_handler_t* handler =
-      (volatile button_handler_t*)malloc(kSize);
+  button_handler_t* handler = (button_handler_t*)malloc(kSize);
 
   assert(handler != NULL);
 
   /* Copy supplied config into a handler; Copy handler to heap */
-  volatile void* dest = &handler->button_config_;
+  void* dest = (void*)&handler->button_config_;
   const void* kSrc = (void*)config;
   memcpy(dest, kSrc, sizeof(*config));
 
@@ -228,14 +222,14 @@ static inline esp_err_t SetPullResistors(const button_config_t* config) {
  *
  * @return esp_err_t
  */
-static inline esp_err_t AddInterruptsForButton(
-    volatile button_handler_t* handler) {
-  const volatile button_config_t* config = &handler->button_config_;
+static inline esp_err_t AddInterruptsForButton(button_handler_t* handler) {
+  const button_config_t const* kConfig = &handler->button_config_;
+  const gpio_num_t kGpio = kConfig->gpio_;
 
-  buttonCHECK(gpio_isr_handler_add(config->gpio_, ButtonInterruptCallback,
-                                   (void*)handler));
-  buttonCHECK(gpio_set_intr_type(config->gpio_, config->type_));
-  buttonCHECK(gpio_intr_enable(config->gpio_));
+  buttonCHECK(
+      gpio_isr_handler_add(kGpio, ButtonInterruptCallback, (void*)handler));
+  buttonCHECK(gpio_set_intr_type(kGpio, kConfig->type_));
+  buttonCHECK(gpio_intr_enable(kGpio));
   return ESP_OK;
 }
 

@@ -49,7 +49,7 @@ esp_err_t ButtonAdd(button_config_t* button_config) {
   ESP_LOGI(buttonTAG, "Adding button on GPIO %i",
            (uint8_t)button_config->gpio_);
 
-  volatile button_handler_t* handler = CopyConfigToHeap(button_config);
+  button_handler_t* handler = CopyConfigToHeap(button_config);
   assert(handler != NULL);
 
   buttonCHECK(gpio_set_direction(button_config->gpio_, GPIO_MODE_INPUT));
@@ -88,7 +88,6 @@ void ButtonInterruptCallback(void* pvParm) {
 
   /* Disable interrupts ASAP or interrupts will continue to queue */
   button_handler_t* button = (button_handler_t*)pvParm;
-
   const button_config_t* config = &button->button_config_;
   gpio_set_intr_type(config->gpio_, GPIO_INTR_DISABLE);
 
@@ -112,13 +111,14 @@ void ButtonInterruptCallback(void* pvParm) {
 }
 
 void ButtonEventTask(void* pvParm /* Not used */) {
-  volatile button_handler_t* button;
+  button_handler_t* button;
   void* const kDequeueDest = (void*)&button;
 
   /* Begin blocking loop */
   while (1) {
-    /* Wait for button to be queued from ISR trigger*/
     BaseType_t got_item_from_queue = pdFALSE;
+
+    /* Dequeue button_handler_t pointer */
     got_item_from_queue =
         xQueueReceive(kButtonQueue, kDequeueDest, portMAX_DELAY);
 
@@ -129,24 +129,6 @@ void ButtonEventTask(void* pvParm /* Not used */) {
 
     assert(button != NULL);
     ButtonProcessRelease(button);
-
-    const uint32_t kElapsedMs = GetPressDurationMillis(button);
-
-    if (kElapsedMs < BUTTON_DEBOUNCE_MS) {
-      // NO-OP, pulse too short
-      ESP_LOGD(buttonTAG, "Ignoring short pulse - %i ms", kElapsedMs);
-      return;
-    }
-
-    /* Pulse was of valid length, run press / hold callback */
-    if (true) {
-      ESP_LOGI(buttonTAG, "HOLD - %i ms", kElapsedMs);
-      ESP_LOGI(buttonTAG, "%i", button->button_config_.gpio_);
-      //(button->button_config_.callback_)(kButtonHold);
-    } else {
-      ESP_LOGI(buttonTAG, "PRESS - %i ms", kElapsedMs);
-      (button->button_config_.callback_)(kButtonPress);
-    }
 
     /* Re-enable enterrupt based on value set from UpdateInterruptType() */
     gpio_set_intr_type(button->button_config_.gpio_,
