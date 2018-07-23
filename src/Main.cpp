@@ -38,7 +38,6 @@ void app_main() {
   config.callback_ = buttonCallback;
   config.type_ = GPIO_INTR_LOW_LEVEL;
   ESP_ERROR_CHECK(ButtonAdd(&config));
-  config.callback_(kButtonHold);
 
   xTaskCreate(task, "task", 2048, nullptr, 5, nullptr);
   while (true) {

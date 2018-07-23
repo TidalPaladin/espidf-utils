@@ -17,7 +17,7 @@
  * Later processing requested using RTOS daemon / task
  *
  * Processor discriminates press vs release
- * Processor starts timer to re-enable interrupt after deboune period
+ * Processor starts timer to re-enable interrupt after debounce period
  *
  *
  */
@@ -111,16 +111,16 @@ void ButtonInterruptCallback(void* pvParm) {
 }
 
 void ButtonEventTask(void* pvParm /* Not used */) {
-  button_handler_t* button;
-  void* const kDequeueDest = (void*)&button;
-
   /* Begin blocking loop */
   while (1) {
+    volatile button_handler_t* button;
+    void* const kDequeueDest = (void*)&button;
     BaseType_t got_item_from_queue = pdFALSE;
 
     /* Dequeue button_handler_t pointer */
     got_item_from_queue =
         xQueueReceive(kButtonQueue, kDequeueDest, portMAX_DELAY);
+    heap_caps_check_integrity_all(true);
 
     if (got_item_from_queue == pdFALSE) {
       ESP_LOGE(buttonTAG, "xQueueReceive expired without getting anything");
@@ -132,12 +132,6 @@ void ButtonEventTask(void* pvParm /* Not used */) {
 
     /* Re-enable enterrupt based on value set from UpdateInterruptType() */
     gpio_set_intr_type(button->button_config_.gpio_,
-                       button->current_interrupt_type_);
-#if (INCLUDE_uxTaskGetStackHighWaterMark == 1)
-    // ESP_LOGI(buttonTAG, "Stack watermark: %i words",
-    //          (uint32_t)uxTaskGetStackHighWaterMark(NULL));
-#endif
-
-    button = NULL;
+                       button->button_config_.type_);
   }
 }

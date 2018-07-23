@@ -40,7 +40,7 @@ extern "C" {
 
 /* Override the queue size for issues with multiple buttons firing at once */
 #ifndef BUTTON_QUEUE_SIZE
-#define BUTTON_QUEUE_SIZE 2
+#define BUTTON_QUEUE_SIZE 1
 #endif
 
 /* Manually set stack size */
@@ -73,7 +73,7 @@ typedef struct {
  *
  * @return ESP_OK on success, ESP_ERR_INVALID_ARG on bad config
  */
-esp_err_t ButtonDefaultConfig(button_config_t* pxConfig);
+esp_err_t ButtonDefaultConfig(button_config_t* config);
 
 /**
  * Installs the ISR service using gpio_install_isr_service()
@@ -95,19 +95,7 @@ esp_err_t ButtonInit();
  *  - Other esp_err_t if one of the interrupt init commands failed
  *  - ESP_OK on success
  */
-esp_err_t ButtonAdd(button_config_t* pxConfig);
-
-/**
- * Disable the button on a given GPIO
- *
- * @param gpio  The GPIO to disable button behavior on
- *              pre: gpio is attached to button with ButtonAdd
- *
- * @return esp_err_t
- *  - ESP_ERR_INVALID_ARG -> No button was active on the given GPIO
- *  - ESP_OK -> Success
- */
-esp_err_t ButtonDisable(gpio_num_t gpio);
+esp_err_t ButtonAdd(button_config_t* config);
 
 /**
  * Destroys a button instance

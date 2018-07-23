@@ -124,7 +124,8 @@ static inline BaseType_t ButtonIsrHandleRelease(button_handler_t* handler) {
  * @return The milliseconds elapsed between tick_count_press_ and
  * tick_count_release_
  */
-static inline uint32_t GetPressDurationMillis(const button_handler_t* button) {
+static inline uint32_t GetPressDurationMillis(
+    volatile button_handler_t* button) {
   return portTICK_PERIOD_MS *
          (button->tick_count_release_ - button->tick_count_press_);
 }
@@ -135,14 +136,15 @@ static inline uint32_t GetPressDurationMillis(const button_handler_t* button) {
  * @param button  Pointer to the button to process
  *
  */
-void ButtonProcessRelease(const button_handler_t* const button) {
+void ButtonProcessRelease(volatile button_handler_t* const button) {
   assert(button != NULL);
+  heap_caps_check_integrity_all(true);
 
   const uint32_t kElapsedMs = GetPressDurationMillis(button);
 
   if (kElapsedMs < BUTTON_DEBOUNCE_MS) {
     // NO-OP, pulse too short
-    ESP_LOGD(buttonTAG, "Ignoring short pulse - %i ms", kElapsedMs);
+    //    ESP_LOGD(buttonTAG, "Ignoring button bounce");
     return;
   }
 
@@ -158,6 +160,9 @@ void ButtonProcessRelease(const button_handler_t* const button) {
   } else {
     (button->button_config_.callback_)(kButtonPress);
   }
+
+  // ESP_LOGD(buttonTAG, "Finished processing event, duration of %i ms",
+  //         kElapsedMs);
 }
 
 /**
