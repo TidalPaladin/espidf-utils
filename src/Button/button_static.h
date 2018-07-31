@@ -39,6 +39,7 @@ typedef struct {
     TickType_t tick_count_release_;
     TickType_t tick_count_press_;
     gpio_int_type_t current_interrupt_type_;
+    gpio_int_type_t last_triggered_interrupt_;
 } button_handler_t;
 
 /**
