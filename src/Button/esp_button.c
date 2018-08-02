@@ -87,26 +87,13 @@ esp_err_t ButtonDeinit()
  *
  */
 
-static void ButtonInterruptCallback(void* pvParm)
+static void ButtonInterruptCallback(void* param)
 {
     portENTER_CRITICAL_ISR(&mux);
+    button_handler_t* button = (button_handler_t*)param;
+    EnqueueEventTime(button);
 
-    /* Disable interrupts ASAP or interrupts will continue to queue */
-    button_handler_t* button = (button_handler_t*)pvParm;
-    const button_config_t* config = &button->button_config_;
-    gpio_set_intr_type(config->gpio_, GPIO_INTR_DISABLE);
-
-    /* Released if ISR trigger doesn't match user defined press interrupt type */
-    const bool kWasReleased = (button->current_interrupt_type_ != config->type_);
-    UpdateInterruptType(button);
-
-    /* TODO rename variables, this is confusing */
     BaseType_t needs_task_switch;
-    if (kWasReleased) {
-        needs_task_switch = ButtonHandleReleaseFromIsr(button);
-    } else {
-        needs_task_switch = ButtonHandleDepressFromIsr(button);
-    }
 
     /* If we woke a higher priority task from ISR, exit ISR to that task */
     portEXIT_CRITICAL_ISR(&mux);

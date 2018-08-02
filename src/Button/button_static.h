@@ -36,8 +36,7 @@ static const uint32_t kButtonIntrFlags = ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LOWM
 /* Button config wrapped into a struct with private members */
 typedef struct {
     const button_config_t button_config_;
-    TickType_t tick_count_release_;
-    TickType_t tick_count_press_;
+    TickType_t event_times[2];
     gpio_int_type_t current_interrupt_type_;
 } button_handler_t;
 
@@ -265,6 +264,16 @@ static inline bool ButtonWaitForEvent(button_handler_t* triggered_button)
     return kReceivedEvent == pdTRUE;
 }
 
+static TickType_t GetTimeBetweenEvents(button_handler_t* button)
+{
+    return button->event_times[1] - button->event_times[0];
+}
+
+static void EnqueueEventTime(button_handler_t* button)
+{
+    button->event_times[0] = button->event_times[1];
+    button->event_times[1] = xTaskGetTickCountFromISR();
+}
 /**
  * @brief Starts a timer that will re-enable
  */
