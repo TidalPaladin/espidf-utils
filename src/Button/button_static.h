@@ -38,6 +38,7 @@ typedef struct {
     const button_config_t button_config_;
     TickType_t event_times[2];
     gpio_int_type_t current_interrupt_type_;
+    gpio_int_type_t last_triggered_interrupt_;
 } button_handler_t;
 
 /**
